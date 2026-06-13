@@ -591,6 +591,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <div style="display:flex; gap: 0.25rem;">
                         <button class="action-btn quick-buy-stock" data-symbol="${h.symbol}" title="Add Buy Transaction"><i data-lucide="plus" style="width: 14px; height: 14px;"></i></button>
                         <button class="action-btn quick-sell-stock" data-symbol="${h.symbol}" title="Sell Position" style="color: var(--color-loss);"><i data-lucide="minus" style="width: 14px; height: 14px;"></i></button>
+                        <button class="action-btn quick-remove-stock" data-symbol="${h.symbol}" title="Remove Holding" style="color: var(--color-loss);"><i data-lucide="trash-2" style="width: 14px; height: 14px;"></i></button>
                     </div>
                 </td>
             `;
@@ -603,6 +604,9 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         document.querySelectorAll(".quick-sell-stock").forEach(btn => {
             btn.addEventListener("click", () => openTransactionModal("stock", btn.dataset.symbol, "SELL"));
+        });
+        document.querySelectorAll(".quick-remove-stock").forEach(btn => {
+            btn.addEventListener("click", () => removeHolding("stock", btn.dataset.symbol));
         });
 
         // Build Transactions logs list
@@ -692,6 +696,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <div style="display:flex; gap: 0.25rem;">
                         <button class="action-btn quick-topup-mf" data-code="${h.code}" data-name="${h.name}" title="Buy More / Top Up"><i data-lucide="plus" style="width: 14px; height: 14px;"></i></button>
                         <button class="action-btn quick-redeem-mf" data-code="${h.code}" data-name="${h.name}" title="Redeem Units" style="color: var(--color-loss);"><i data-lucide="minus" style="width: 14px; height: 14px;"></i></button>
+                        <button class="action-btn quick-remove-mf" data-code="${h.code}" data-name="${h.name}" title="Remove Holding" style="color: var(--color-loss);"><i data-lucide="trash-2" style="width: 14px; height: 14px;"></i></button>
                     </div>
                 </td>
             `;
@@ -704,6 +709,9 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         document.querySelectorAll(".quick-redeem-mf").forEach(btn => {
             btn.addEventListener("click", () => openTransactionModal("mf", btn.dataset.code, "SELL", btn.dataset.name));
+        });
+        document.querySelectorAll(".quick-remove-mf").forEach(btn => {
+            btn.addEventListener("click", () => removeHolding("mf", btn.dataset.code, btn.dataset.name));
         });
 
         // Build MF Transactions ledger
@@ -1370,6 +1378,57 @@ document.addEventListener("DOMContentLoaded", () => {
         // Mock loading & Wiping actions
         document.getElementById("load-sample-btn").addEventListener("click", loadDefaults);
         document.getElementById("clear-data-btn").addEventListener("click", wipeDatabase);
+
+        // Global Import portfolio buttons
+        document.getElementById("import-stocks-btn").addEventListener("click", () => openImportModal("stock"));
+        document.getElementById("import-mfs-btn").addEventListener("click", () => openImportModal("mf"));
+
+        // Import Modal control triggers
+        const importCloseBtn = document.getElementById("import-close-btn");
+        if (importCloseBtn) importCloseBtn.addEventListener("click", closeImportModal);
+        
+        const importCancelBtn = document.getElementById("import-cancel-btn");
+        if (importCancelBtn) importCancelBtn.addEventListener("click", closeImportModal);
+        
+        const importLoadBtn = document.getElementById("import-load-sample-btn");
+        if (importLoadBtn) {
+            importLoadBtn.addEventListener("click", () => {
+                const assetClass = document.getElementById("import-asset-class").value;
+                const broker = document.getElementById("import-broker").value;
+                const sampleText = sampleData[assetClass]?.[broker] || "";
+                document.getElementById("import-text-data").value = sampleText;
+                showToast("Sample data loaded. Feel free to edit or click 'Import Assets'!", "info");
+            });
+        }
+        
+        const importBrokerSelect = document.getElementById("import-broker");
+        if (importBrokerSelect) {
+            importBrokerSelect.addEventListener("change", (e) => {
+                updateImportHelpText(document.getElementById("import-asset-class").value, e.target.value);
+            });
+        }
+        
+        const importFileEl = document.getElementById("import-file");
+        if (importFileEl) {
+            importFileEl.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    document.getElementById("import-text-data").value = event.target.result;
+                    showToast(`File "${file.name}" loaded successfully. Ready to import.`, "gain");
+                };
+                reader.readAsText(file);
+            });
+        }
+        
+        const importForm = document.getElementById("import-form");
+        if (importForm) {
+            importForm.addEventListener("submit", (e) => {
+                e.preventDefault();
+                handleImportSubmit();
+            });
+        }
     }
 
     function updateThemeIcons() {
@@ -1818,6 +1877,24 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function removeHolding(assetClass, key, optionalName = "") {
+        const displayName = assetClass === "stock" ? key : (optionalName || key);
+        if (confirm(`Are you sure you want to remove ${displayName} from your portfolio? This will delete all its transaction history.`)) {
+            if (assetClass === "stock") {
+                delete state.holdings.stocks[key];
+                state.transactions = state.transactions.filter(t => !(t.assetClass === "stock" && t.symbol === key));
+                state.realizedGains = state.realizedGains.filter(rg => !(rg.assetClass === "stock" && rg.symbol === key));
+            } else {
+                delete state.holdings.mutualFunds[key];
+                state.transactions = state.transactions.filter(t => !(t.assetClass === "mf" && t.symbol === key));
+                state.realizedGains = state.realizedGains.filter(rg => !(rg.assetClass === "mf" && rg.symbol === key));
+            }
+            saveToLocalStorage();
+            updateUI();
+            showToast(`${displayName} removed completely.`, "loss");
+        }
+    }
+
     function handleSipSubmit(e) {
         e.preventDefault();
 
@@ -1932,6 +2009,302 @@ document.addEventListener("DOMContentLoaded", () => {
             updateUI();
             startSimulator();
             showToast("Local database wiped successfully.", "loss");
+        }
+    }
+
+    // -------------------------------------------------------------
+    // 13B. BROKER-WISE IMPORT LOGIC & PARSERS
+    // -------------------------------------------------------------
+    const sampleData = {
+        stock: {
+            zerodha: "Instrument,Qty.,Avg. cost\nINFY,25,1420.00\nSBIN,50,830.00\nICICIBANK,30,1120.00",
+            groww: "Stock Name,Symbol,Quantity,Average Price\nInfosys Ltd.,INFY,25,1420.00\nState Bank of India,SBIN,50,830.00\nICICI Bank Ltd.,ICICIBANK,30,1120.00",
+            angel: "Stock Symbol,Quantity,Average Buy Price\nINFY,25,1420.00\nSBIN,50,830.00\nICICIBANK,30,1120.00",
+            upstox: "Symbol,Quantity,Buy Price\nINFY,25,1420.00\nSBIN,50,830.00\nICICIBANK,30,1120.00"
+        },
+        mf: {
+            zerodha: "Mutual Fund Name,AMFI Code,Units,Average NAV\nHDFC Top 100 Fund - Direct Growth,119063,150,112.30\nNippon India Small Cap Fund - Direct Growth,118989,200,154.67",
+            groww: "Scheme Name,AMFI Code,Units,Average NAV\nHDFC Top 100 Fund - Direct Growth,119063,150,112.30\nNippon India Small Cap Fund - Direct Growth,118989,200,154.67",
+            angel: "Scheme Name,AMFI Code,Units,Average NAV\nHDFC Top 100 Fund - Direct Growth,119063,150,112.30\nNippon India Small Cap Fund - Direct Growth,118989,200,154.67",
+            upstox: "Scheme Name,AMFI Code,Units,Average Price\nHDFC Top 100 Fund - Direct Growth,119063,150,112.30\nNippon India Small Cap Fund - Direct Growth,118989,200,154.67"
+        }
+    };
+
+    function openImportModal(assetClass = "stock") {
+        const modal = document.getElementById("import-modal");
+        if (!modal) return;
+        
+        document.getElementById("import-asset-class").value = assetClass;
+        document.getElementById("import-modal-title").innerText = `Import ${assetClass === 'stock' ? 'Stocks' : 'Mutual Funds'} Portfolio`;
+        
+        // Reset form
+        document.getElementById("import-form").reset();
+        document.getElementById("import-asset-class").value = assetClass; // Reset changes it
+        
+        const broker = document.getElementById("import-broker").value;
+        updateImportHelpText(assetClass, broker);
+        
+        modal.classList.add("active");
+    }
+
+    function closeImportModal() {
+        const modal = document.getElementById("import-modal");
+        if (modal) modal.classList.remove("active");
+        document.getElementById("import-form").reset();
+    }
+
+    function updateImportHelpText(assetClass, broker) {
+        const helpEl = document.getElementById("import-format-help");
+        if (!helpEl) return;
+        
+        let formatText = "";
+        let placeholderText = "";
+        
+        if (assetClass === "stock") {
+            if (broker === "zerodha") {
+                formatText = "Expected Zerodha Kite Stock CSV Headers: <code>Instrument,Qty.,Avg. cost</code>";
+                placeholderText = "Instrument,Qty.,Avg. cost\nINFY,25,1420.00\nSBIN,50,830.00";
+            } else if (broker === "groww") {
+                formatText = "Expected Groww Stock CSV Headers: <code>Stock Name,Symbol,Quantity,Average Price</code>";
+                placeholderText = "Stock Name,Symbol,Quantity,Average Price\nInfosys Ltd.,INFY,25,1420.00\nState Bank of India,SBIN,50,830.00";
+            } else if (broker === "angel") {
+                formatText = "Expected Angel One Stock CSV Headers: <code>Stock Symbol,Quantity,Average Buy Price</code>";
+                placeholderText = "Stock Symbol,Quantity,Average Buy Price\nINFY,25,1420.00\nSBIN,50,830.00";
+            } else if (broker === "upstox") {
+                formatText = "Expected Upstox Stock CSV Headers: <code>Symbol,Quantity,Buy Price</code>";
+                placeholderText = "Symbol,Quantity,Buy Price\nINFY,25,1420.00\nSBIN,50,830.00";
+            }
+        } else {
+            if (broker === "zerodha") {
+                formatText = "Expected Zerodha Coin Mutual Fund CSV Headers: <code>Mutual Fund Name,AMFI Code,Units,Average NAV</code>";
+                placeholderText = "Mutual Fund Name,AMFI Code,Units,Average NAV\nHDFC Top 100 Fund - Direct Growth,119063,150,112.30";
+            } else if (broker === "groww") {
+                formatText = "Expected Groww Mutual Fund CSV Headers: <code>Scheme Name,AMFI Code,Units,Average NAV</code>";
+                placeholderText = "Scheme Name,AMFI Code,Units,Average NAV\nHDFC Top 100 Fund - Direct Growth,119063,150,112.30";
+            } else if (broker === "angel") {
+                formatText = "Expected Angel One Mutual Fund CSV Headers: <code>Scheme Name,AMFI Code,Units,Average NAV</code>";
+                placeholderText = "Scheme Name,AMFI Code,Units,Average NAV\nHDFC Top 100 Fund - Direct Growth,119063,150,112.30";
+            } else if (broker === "upstox") {
+                formatText = "Expected Upstox Mutual Fund CSV Headers: <code>Scheme Name,AMFI Code,Units,Average Price</code>";
+                placeholderText = "Scheme Name,AMFI Code,Units,Average Price\nHDFC Top 100 Fund - Direct Growth,119063,150,112.30";
+            }
+        }
+        
+        helpEl.innerHTML = formatText + "<br><span style='color: var(--text-muted); font-size: 0.7rem;'>Tip: You can also paste a raw JSON array of objects with keys: symbol/code, quantity/units, and avgPrice/avgNav.</span>";
+        document.getElementById("import-text-data").placeholder = placeholderText;
+    }
+
+    function parseBrokerData(assetClass, broker, text) {
+        text = text.trim();
+        if (!text) return [];
+
+        // Check if it is JSON
+        if (text.startsWith("[") || text.startsWith("{")) {
+            try {
+                const parsed = JSON.parse(text);
+                const list = Array.isArray(parsed) ? parsed : [parsed];
+                return list.map(item => {
+                    const qty = parseFloat(item.quantity || item.qty || item.units || 0);
+                    const price = parseFloat(item.avgPrice || item.price || item.averagePrice || item.avgNav || item.nav || item.avgPrice || 0);
+                    const sym = (item.symbol || item.code || item.instrument || item.amfiCode || "").trim().toUpperCase();
+                    const name = (item.name || item.schemeName || item.stockName || sym).trim();
+                    return { symbol: sym, name, quantity: qty, avgPrice: price };
+                }).filter(item => item.symbol && item.quantity > 0 && item.avgPrice > 0);
+            } catch (e) {
+                console.error("JSON parsing error:", e);
+                throw new Error("Invalid JSON format. Check syntax.");
+            }
+        }
+
+        // Otherwise parse CSV
+        const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+        if (lines.length < 2) {
+            throw new Error("No data found or headers missing.");
+        }
+
+        const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+        
+        // Helper to find column index by potential names
+        function findColumnIndex(possibleNames) {
+            for (let name of possibleNames) {
+                const idx = headers.indexOf(name.toLowerCase());
+                if (idx !== -1) return idx;
+            }
+            return -1;
+        }
+
+        // Map columns depending on broker and assetClass
+        let symbolIdx = -1;
+        let qtyIdx = -1;
+        let priceIdx = -1;
+        let nameIdx = -1;
+
+        if (assetClass === "stock") {
+            if (broker === "zerodha") {
+                symbolIdx = findColumnIndex(["instrument", "symbol", "stock symbol"]);
+                qtyIdx = findColumnIndex(["qty.", "quantity", "qty", "shares"]);
+                priceIdx = findColumnIndex(["avg. cost", "average price", "avg price", "avg buy price", "buy price"]);
+            } else if (broker === "groww") {
+                symbolIdx = findColumnIndex(["symbol", "instrument"]);
+                qtyIdx = findColumnIndex(["quantity", "qty", "qty."]);
+                priceIdx = findColumnIndex(["average price", "avg. cost", "avg price", "buy price"]);
+                nameIdx = findColumnIndex(["stock name"]);
+            } else if (broker === "angel") {
+                symbolIdx = findColumnIndex(["stock symbol", "symbol", "instrument"]);
+                qtyIdx = findColumnIndex(["quantity", "qty", "qty."]);
+                priceIdx = findColumnIndex(["average buy price", "avg price", "average price", "avg. cost", "buy price"]);
+            } else if (broker === "upstox") {
+                symbolIdx = findColumnIndex(["symbol", "instrument"]);
+                qtyIdx = findColumnIndex(["quantity", "qty", "qty."]);
+                priceIdx = findColumnIndex(["buy price", "average price", "avg price", "avg. cost"]);
+            } else {
+                symbolIdx = findColumnIndex(["symbol", "instrument", "stock symbol"]);
+                qtyIdx = findColumnIndex(["qty.", "quantity", "qty", "shares"]);
+                priceIdx = findColumnIndex(["avg. cost", "average price", "avg price", "avg buy price", "buy price"]);
+            }
+        } else { // Mutual Funds
+            symbolIdx = findColumnIndex(["amfi code", "code", "scheme code", "symbol"]);
+            qtyIdx = findColumnIndex(["units", "quantity", "qty", "qty."]);
+            priceIdx = findColumnIndex(["average nav", "avg nav", "average price", "avg price", "price"]);
+            nameIdx = findColumnIndex(["mutual fund name", "scheme name", "name", "fund name"]);
+        }
+
+        // Generic defaults if specific headers aren't found
+        if (symbolIdx === -1) symbolIdx = 0; 
+        if (qtyIdx === -1) qtyIdx = 1;      
+        if (priceIdx === -1) priceIdx = 2;  
+
+        const results = [];
+        for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(",").map(c => c.trim());
+            if (cols.length <= Math.max(symbolIdx, qtyIdx, priceIdx)) continue;
+
+            const sym = cols[symbolIdx].toUpperCase();
+            const qty = parseFloat(cols[qtyIdx]);
+            const price = parseFloat(cols[priceIdx]);
+            const name = nameIdx !== -1 && cols[nameIdx] ? cols[nameIdx] : sym;
+
+            if (sym && !isNaN(qty) && !isNaN(price) && qty > 0 && price > 0) {
+                results.push({ symbol: sym, name, quantity: qty, avgPrice: price });
+            }
+        }
+
+        return results;
+    }
+
+    function handleImportSubmit() {
+        const assetClass = document.getElementById("import-asset-class").value;
+        const broker = document.getElementById("import-broker").value;
+        const textData = document.getElementById("import-text-data").value;
+        
+        try {
+            const parsedList = parseBrokerData(assetClass, broker, textData);
+            if (parsedList.length === 0) {
+                showToast("No valid holdings were found to import. Check format.", "warning");
+                return;
+            }
+            
+            let importCount = 0;
+            const today = new Date().toISOString().split('T')[0];
+            
+            parsedList.forEach(item => {
+                const { symbol, name, quantity, avgPrice } = item;
+                
+                if (assetClass === "stock") {
+                    if (!state.holdings.stocks[symbol]) {
+                        const baseInfo = window.marketStocks.find(s => s.symbol === symbol) || {};
+                        state.holdings.stocks[symbol] = {
+                            symbol,
+                            name: baseInfo.name || name || symbol,
+                            quantity: 0,
+                            avgPrice: 0,
+                            totalCost: 0,
+                            basePrice: baseInfo.basePrice || avgPrice,
+                            currentPrice: baseInfo.currentPrice || avgPrice,
+                            sector: baseInfo.sector || "General Equity"
+                        };
+                    }
+                    const h = state.holdings.stocks[symbol];
+                    h.quantity += quantity;
+                    h.totalCost += (quantity * avgPrice);
+                    h.avgPrice = h.quantity > 0 ? h.totalCost / h.quantity : 0;
+                    
+                    state.transactions.push({
+                        id: "tx_import_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+                        assetClass: "stock",
+                        symbol,
+                        name: h.name,
+                        type: "BUY",
+                        qty: quantity,
+                        price: avgPrice,
+                        brokerage: 0,
+                        date: today
+                    });
+                    
+                    importCount++;
+                } else {
+                    let category = "Equity - Active Growth";
+                    const lowerName = name.toLowerCase();
+                    if (lowerName.includes("liquid") || lowerName.includes("debt") || lowerName.includes("gilt") || lowerName.includes("bond")) {
+                        category = "Debt - Liquid";
+                    } else if (lowerName.includes("hybrid") || lowerName.includes("arbitrage") || lowerName.includes("asset allocator")) {
+                        category = "Hybrid";
+                    }
+                    
+                    if (!state.holdings.mutualFunds[symbol]) {
+                        const baseInfo = window.popularMutualFunds.find(m => m.amfiCode === symbol) || {};
+                        state.holdings.mutualFunds[symbol] = {
+                            code: symbol,
+                            name: baseInfo.name || name || symbol,
+                            category: baseInfo.category || category,
+                            units: 0,
+                            avgPrice: 0,
+                            totalCost: 0,
+                            currentNav: baseInfo.currentNav || avgPrice
+                        };
+                    }
+                    const h = state.holdings.mutualFunds[symbol];
+                    h.units += quantity;
+                    h.totalCost += (quantity * avgPrice);
+                    h.avgPrice = h.units > 0 ? h.totalCost / h.units : 0;
+                    
+                    state.transactions.push({
+                        id: "tx_import_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+                        assetClass: "mf",
+                        symbol,
+                        name: h.name,
+                        type: "BUY",
+                        qty: quantity,
+                        price: avgPrice,
+                        brokerage: 0,
+                        date: today
+                    });
+                    
+                    // Fetch real NAV from API in the background
+                    fetch(`https://api.mfapi.in/mf/${symbol}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data && data.data && data.data[0]) {
+                                state.holdings.mutualFunds[symbol].currentNav = parseFloat(data.data[0].nav);
+                                saveToLocalStorage();
+                                recalculatePortfolioTotals();
+                                updateMfsTbody();
+                                updateCharts();
+                            }
+                        })
+                        .catch(err => console.error("Error fetching NAV during import background update", err));
+                        
+                    importCount++;
+                }
+            });
+            
+            saveToLocalStorage();
+            closeImportModal();
+            updateUI();
+            showToast(`Successfully imported ${importCount} ${assetClass === 'stock' ? 'positions' : 'mutual funds scheme'}!`, "gain");
+            
+        } catch (e) {
+            showToast(e.message || "Failed to parse import data. Please check headers/fields.", "loss");
         }
     }
 

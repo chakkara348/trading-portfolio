@@ -874,3 +874,13 @@ select.form-control {
         text-align: center;
     }
 }
+
+/* Premium styling for quick-remove buttons */
+.action-btn.quick-remove-stock:hover,
+.action-btn.quick-remove-mf:hover {
+    background: var(--color-loss-bg) !important;
+    border-color: rgba(244, 63, 94, 0.4) !important;
+    box-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
+    color: var(--color-loss) !important;
+}
+

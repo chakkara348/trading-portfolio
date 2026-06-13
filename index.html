@@ -201,9 +201,14 @@
             <!-- Holdings and Actions Header -->
             <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                 <h2 style="font-family: var(--font-heading); font-size: 1.35rem; font-weight: 700;">Direct Equity Holdings</h2>
-                <button class="btn-primary" id="add-stock-btn">
-                    <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Transact Stock
-                </button>
+                <div style="display:flex; gap: 0.5rem;">
+                    <button class="btn-secondary" id="import-stocks-btn">
+                        <i data-lucide="upload" style="width: 16px; height: 16px;"></i> Import Stocks
+                    </button>
+                    <button class="btn-primary" id="add-stock-btn">
+                        <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Transact Stock
+                    </button>
+                </div>
             </div>
 
             <!-- Holdings Table -->
@@ -279,6 +284,9 @@
             <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 1rem;">
                 <h2 style="font-family: var(--font-heading); font-size: 1.35rem; font-weight: 700;">Mutual Fund Holdings</h2>
                 <div style="display:flex; gap: 0.5rem;">
+                    <button class="btn-secondary" id="import-mfs-btn">
+                        <i data-lucide="upload" style="width: 16px; height: 16px;"></i> Import MFs
+                    </button>
                     <button class="btn-secondary" id="setup-sip-btn">
                         <i data-lucide="calendar-days" style="width: 16px; height: 16px;"></i> Start SIP
                     </button>
@@ -702,6 +710,64 @@
                 <div class="modal-footer">
                     <button type="button" class="btn-secondary" id="sip-cancel-btn">Cancel</button>
                     <button type="submit" class="btn-primary">Create SIP</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- PORTFOLIO IMPORT MODAL -->
+    <div class="modal-overlay" id="import-modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="import-modal-title">Import Assets Portfolio</h3>
+                <button class="close-btn" id="import-close-btn">&times;</button>
+            </div>
+            
+            <form id="import-form">
+                <input type="hidden" id="import-asset-class" value="stock">
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <!-- Broker Selector -->
+                    <div class="form-group">
+                        <label for="import-broker">Select Broker</label>
+                        <select id="import-broker" class="form-control">
+                            <option value="zerodha" selected>Zerodha (Kite / Coin)</option>
+                            <option value="groww">Groww</option>
+                            <option value="angel">Angel One</option>
+                            <option value="upstox">Upstox</option>
+                        </select>
+                    </div>
+                    
+                    <!-- File Uploader -->
+                    <div class="form-group">
+                        <label for="import-file">Upload CSV/JSON File</label>
+                        <input type="file" id="import-file" accept=".csv,.json" class="form-control" style="padding: 0.35rem 0.75rem;">
+                    </div>
+                </div>
+
+                <!-- Textarea copy-paste -->
+                <div class="form-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <label style="margin: 0;">Or Paste CSV / JSON Data</label>
+                        <button type="button" class="btn-secondary" id="import-load-sample-btn" style="padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 6px;">
+                            <i data-lucide="file-text" style="width: 12px; height: 12px;"></i> Load Sample Broker Data
+                        </button>
+                    </div>
+                    <textarea id="import-text-data" class="form-control" rows="8" placeholder="Instrument,Qty.,Avg. cost&#10;RELIANCE,10,2450.00&#10;INFY,15,1420.00" style="font-family: monospace; font-size: 0.8rem; resize: vertical;"></textarea>
+                </div>
+
+                <!-- Help / Format Note -->
+                <div class="form-group" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 0.75rem 1rem; border-radius: 8px;">
+                    <span style="font-size: 0.75rem; color: var(--text-secondary); display: block;" id="import-format-help">
+                        Expected Zerodha Kite Stock CSV Headers: <code>Instrument,Qty.,Avg. cost</code>
+                    </span>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" id="import-cancel-btn">Cancel</button>
+                    <button type="submit" class="btn-primary" id="import-submit-btn">
+                        <i data-lucide="upload" style="width: 16px; height: 16px;"></i> Import Assets
+                    </button>
                 </div>
             </form>
         </div>
