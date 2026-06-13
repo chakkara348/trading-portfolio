@@ -2278,7 +2278,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 return list.map(item => {
                     const qty = parseFloat(item.quantity || item.qty || item.units || 0);
                     const price = parseFloat(item.avgPrice || item.price || item.averagePrice || item.avgNav || item.nav || item.avgPrice || 0);
-                    const sym = (item.symbol || item.code || item.instrument || item.amfiCode || "").trim().toUpperCase();
+                    let sym = (item.symbol || item.code || item.instrument || item.amfiCode || "").trim().toUpperCase();
+                    if (assetClass === "stock") {
+                        sym = sym.replace(".NS", "").replace(".BO", "").replace("-EQ", "").replace("-BE", "");
+                    }
                     const name = (item.name || item.schemeName || item.stockName || sym).trim();
                     return { symbol: sym, name, quantity: qty, avgPrice: price };
                 }).filter(item => item.symbol && item.quantity > 0 && item.avgPrice > 0);
@@ -2351,7 +2354,10 @@ document.addEventListener("DOMContentLoaded", () => {
             const cols = lines[i].split(",").map(c => c.trim());
             if (cols.length <= Math.max(symbolIdx, qtyIdx, priceIdx)) continue;
 
-            const sym = cols[symbolIdx].toUpperCase();
+            let sym = cols[symbolIdx].toUpperCase();
+            if (assetClass === "stock") {
+                sym = sym.replace(".NS", "").replace(".BO", "").replace("-EQ", "").replace("-BE", "");
+            }
             const qty = parseFloat(cols[qtyIdx]);
             const price = parseFloat(cols[priceIdx]);
             const name = nameIdx !== -1 && cols[nameIdx] ? cols[nameIdx] : sym;
@@ -2374,6 +2380,20 @@ document.addEventListener("DOMContentLoaded", () => {
             if (parsedList.length === 0) {
                 showToast("No valid holdings were found to import. Check format.", "warning");
                 return;
+            }
+            
+            // Check if current state contains only the initial demo data
+            const isDemoData = state.transactions.length === 5 && 
+                               state.transactions.some(t => t.id === "t1") &&
+                               state.transactions.some(t => t.id === "t5");
+                               
+            if (isDemoData) {
+                // Clear the demo data to prevent merging real data with simulated mock data
+                state.holdings = { stocks: {}, mutualFunds: {} };
+                state.transactions = [];
+                state.realizedGains = [];
+                state.sips = [];
+                historicalValuations = [];
             }
             
             let importCount = 0;
