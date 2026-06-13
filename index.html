@@ -17,9 +17,10 @@
         
         <!-- Live Stock Ticker -->
         <div class="live-ticker-banner">
-            <div class="ticker-title">
+            <div class="ticker-title" style="display: flex; align-items: center; gap: 0.5rem;">
                 <i data-lucide="activity" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
                 Live NSE/BSE Ticker
+                <span id="market-status-badge" class="badge" style="padding: 0.15rem 0.4rem; font-size: 0.65rem; border-radius: 4px; text-transform: uppercase;">Checking...</span>
             </div>
             <div class="ticker-track" id="live-ticker-track">
                 <!-- Stock tickers will be dynamically injected here -->

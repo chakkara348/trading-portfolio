@@ -53,6 +53,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Render everything
                 initCharts();
                 updateUI();
+                
+                // Fetch real live prices on load
+                fetchLiveStockPrices();
+                fetchLiveMFNavs();
+                
                 startSimulator();
             } catch (e) {
                 console.error("Error loading local storage state, fallback to defaults.", e);
@@ -165,6 +170,11 @@ document.addEventListener("DOMContentLoaded", () => {
         saveToLocalStorage();
         initCharts();
         updateUI();
+        
+        // Fetch real live prices on load
+        fetchLiveStockPrices();
+        fetchLiveMFNavs();
+        
         startSimulator();
         showToast("Default sample portfolio loaded!", "gain");
     }
@@ -176,21 +186,185 @@ document.addEventListener("DOMContentLoaded", () => {
     // -------------------------------------------------------------
     // 3. THE SIMULATOR (RANDOM WALK PRICE UPDATES)
     // -------------------------------------------------------------
+    let apiPollCounter = 0;
+
+    function getMarketStatus() {
+        // Compute Indian Standard Time (IST is UTC+5.5)
+        const date = new Date();
+        const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+        const istTime = new Date(utc + (3600000 * 5.5));
+        
+        const day = istTime.getDay(); // 0 = Sun, 6 = Sat
+        const hour = istTime.getHours();
+        const minute = istTime.getMinutes();
+        
+        if (day === 0 || day === 6) {
+            return { open: false, status: "Closed", detail: "Market Closed (Weekend)" };
+        }
+        
+        const timeInMinutes = hour * 60 + minute;
+        const startMinutes = 9 * 60 + 15; // 9:15 AM IST
+        const endMinutes = 15 * 60 + 30; // 3:30 PM IST
+        
+        if (timeInMinutes >= startMinutes && timeInMinutes <= endMinutes) {
+            return { open: true, status: "Live", detail: "Market Open (Live price feed)" };
+        } else if (timeInMinutes < startMinutes) {
+            return { open: false, status: "Closed", detail: "Market Closed (Opens at 9:15 AM IST)" };
+        } else {
+            return { open: false, status: "Closed", detail: "Market Closed (Market hours: 9:15 AM - 3:30 PM IST)" };
+        }
+    }
+
+    function fetchLiveStockPrices() {
+        if (!window.marketStocks || window.marketStocks.length === 0) return Promise.resolve();
+        const symbols = window.marketStocks.map(s => `${s.symbol}.NS`).join(",");
+        const targetUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
+        
+        // Try Primary Proxy: corsproxy.io
+        const primaryUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
+        
+        return fetch(primaryUrl)
+            .then(res => {
+                if (!res.ok) throw new Error("Primary proxy failed");
+                return res.json();
+            })
+            .then(data => {
+                // corsproxy.io returns the raw Yahoo Finance response directly
+                updateStockPricesFromQuote(data);
+            })
+            .catch(err => {
+                console.warn("Primary CORS proxy failed, trying backup proxy...", err);
+                // Try Backup Proxy: allorigins.win
+                const backupUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+                return fetch(backupUrl)
+                    .then(res => {
+                        if (!res.ok) throw new Error("Backup proxy failed");
+                        return res.json();
+                    })
+                    .then(data => {
+                        // allorigins wraps response in { contents: "..." }
+                        const parsed = JSON.parse(data.contents);
+                        updateStockPricesFromQuote(parsed);
+                    })
+                    .catch(backupErr => {
+                        console.error("All CORS proxies failed to fetch live stock prices:", backupErr);
+                    });
+            });
+    }
+
+    function updateStockPricesFromQuote(responseObj) {
+        const results = responseObj?.quoteResponse?.result;
+        if (!results || !Array.isArray(results)) {
+            throw new Error("Invalid quote response format");
+        }
+        
+        results.forEach(quote => {
+            const cleanSymbol = quote.symbol.replace(".NS", "");
+            const regularPrice = parseFloat(quote.regularMarketPrice);
+            const prevClose = parseFloat(quote.regularMarketPreviousClose);
+            
+            const stock = window.marketStocks.find(s => s.symbol === cleanSymbol);
+            if (stock && !isNaN(regularPrice)) {
+                stock.currentPrice = regularPrice;
+                if (!isNaN(prevClose)) {
+                    stock.basePrice = prevClose;
+                }
+                stock.change = stock.currentPrice - stock.basePrice;
+                stock.changePercent = (stock.change / stock.basePrice) * 100;
+                
+                // Update active holdings in state if present
+                if (state.holdings.stocks[cleanSymbol]) {
+                    state.holdings.stocks[cleanSymbol].currentPrice = regularPrice;
+                    state.holdings.stocks[cleanSymbol].basePrice = stock.basePrice;
+                }
+            }
+        });
+        
+        recalculatePortfolioTotals();
+        updateUI();
+        console.log("Live stock prices updated successfully from Yahoo Finance");
+    }
+
+    function fetchLiveMFNavs() {
+        const codes = Object.keys(state.holdings.mutualFunds);
+        if (codes.length === 0) return Promise.resolve();
+        
+        const fetchPromises = codes.map(code => {
+            return fetch(`https://api.mfapi.in/mf/${code}`)
+                .then(res => {
+                    if (!res.ok) throw new Error(`NAV fetch failed for ${code}`);
+                    return res.json();
+                })
+                .then(data => {
+                    if (data && data.data && data.data[0]) {
+                        const nav = parseFloat(data.data[0].nav);
+                        if (!isNaN(nav)) {
+                            state.holdings.mutualFunds[code].currentNav = nav;
+                        }
+                    }
+                })
+                .catch(err => console.error(`Error updating live NAV for MF ${code}:`, err));
+        });
+        
+        return Promise.all(fetchPromises)
+            .then(() => {
+                recalculatePortfolioTotals();
+                updateUI();
+                console.log("Live Mutual Fund NAVs updated successfully from AMFI");
+            });
+    }
+
+    function updateMarketStatusUI(market = null) {
+        const badge = document.getElementById("market-status-badge");
+        if (!badge) return;
+
+        const status = market || getMarketStatus();
+        badge.innerText = status.status;
+        badge.title = status.detail;
+
+        if (status.open) {
+            badge.className = "badge badge-gain";
+            badge.style.borderColor = "rgba(16, 185, 129, 0.3)";
+        } else {
+            badge.className = "badge badge-loss";
+            badge.style.borderColor = "rgba(244, 63, 94, 0.3)";
+        }
+    }
+
     function startSimulator() {
         if (simulatorInterval) clearInterval(simulatorInterval);
         
         if (state.settings.simulatorSpeed === "paused") {
+            updateMarketStatusUI();
             return;
         }
 
+        // Initialize status UI on start
+        updateMarketStatusUI();
+
         simulatorInterval = setInterval(() => {
+            const market = getMarketStatus();
+            updateMarketStatusUI(market);
+
+            if (!market.open) {
+                // If market is closed, do not fluctuate or poll API
+                return;
+            }
+
+            // Market is open: handle API quote polling every 30 seconds
+            apiPollCounter += parseInt(state.settings.simulatorSpeed);
+            if (apiPollCounter >= 30000) {
+                apiPollCounter = 0;
+                fetchLiveStockPrices();
+            }
+
             let changesOccured = false;
             
-            // Fluctuate Stocks in window.marketStocks
+            // Fluctuate Stocks in window.marketStocks (simulate volatility)
             if (window.marketStocks) {
                 window.marketStocks.forEach(stock => {
-                    const volatility = 0.006 * stock.beta; // Fluctuation range based on beta
-                    const rand = (Math.random() - 0.5) * 2; // Random float between -1 and +1
+                    const volatility = 0.003 * stock.beta; // Reduced volatility slightly for realism
+                    const rand = (Math.random() - 0.5) * 2; 
                     const changePercent = rand * volatility;
                     const priceDiff = stock.currentPrice * changePercent;
                     
@@ -198,7 +372,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     stock.change = stock.currentPrice - stock.basePrice;
                     stock.changePercent = (stock.change / stock.basePrice) * 100;
 
-                    // Update holding reference as well
                     if (state.holdings.stocks[stock.symbol]) {
                         state.holdings.stocks[stock.symbol].currentPrice = stock.currentPrice;
                         changesOccured = true;
@@ -209,15 +382,14 @@ document.addEventListener("DOMContentLoaded", () => {
             // Fluctuate Mutual Fund NAVs slowly
             Object.keys(state.holdings.mutualFunds).forEach(code => {
                 const mf = state.holdings.mutualFunds[code];
-                const rand = (Math.random() - 0.48) * 2; // Slight upward bias for mutual funds long term
-                const navDiff = mf.currentNav * (rand * 0.001); // MFs change much slower
+                const rand = (Math.random() - 0.49) * 2; 
+                const navDiff = mf.currentNav * (rand * 0.0005); 
                 
                 mf.currentNav = Math.max(1.0, mf.currentNav + navDiff);
                 changesOccured = true;
             });
 
             if (changesOccured) {
-                // Refresh dashboard components and advisory notes dynamically
                 updateTickers();
                 recalculatePortfolioTotals();
                 updateDashboardTbody();
