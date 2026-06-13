@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pinnacle | Stocks & Mutual Funds Portfolio Manager</title>
+    <!-- CSS stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body data-theme="dark">
+
+    <div class="app-container">
+        
+        <!-- Live Stock Ticker -->
+        <div class="live-ticker-banner">
+            <div class="ticker-title">
+                <i data-lucide="activity" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
+                Live NSE/BSE Ticker
+            </div>
+            <div class="ticker-track" id="live-ticker-track">
+                <!-- Stock tickers will be dynamically injected here -->
+                <div style="color: var(--text-muted); font-size: 0.8rem;">Connecting live simulator feed...</div>
+            </div>
+        </div>
+
+        <!-- Navigation Header -->
+        <header>
+            <div class="logo-section">
+                <div class="logo-icon">P</div>
+                <div>
+                    <h1>Pinnacle Portfolio</h1>
+                    <p style="font-size: 0.75rem; color: var(--text-muted);">Real-time Wealth Advisory</p>
+                </div>
+            </div>
+
+            <!-- Tabs Navigation -->
+            <nav class="nav-tabs">
+                <button class="nav-tab active" data-tab="dashboard-tab">
+                    <i data-lucide="layout-dashboard" style="width: 16px; height: 16px;"></i> Dashboard
+                </button>
+                <button class="nav-tab" data-tab="stocks-tab">
+                    <i data-lucide="trending-up" style="width: 16px; height: 16px;"></i> Stocks
+                </button>
+                <button class="nav-tab" data-tab="mfs-tab">
+                    <i data-lucide="pie-chart" style="width: 16px; height: 16px;"></i> Mutual Funds
+                </button>
+                <button class="nav-tab" data-tab="advisor-tab" id="nav-advisor-btn">
+                    <i data-lucide="sparkles" style="width: 16px; height: 16px;"></i> Advisory Engine
+                    <span id="advisor-badge" class="badge badge-warning" style="display: none; padding: 0.1rem 0.4rem; margin-left: 0.25rem;">0</span>
+                </button>
+                <button class="nav-tab" data-tab="tax-tab">
+                    <i data-lucide="percent" style="width: 16px; height: 16px;"></i> Tax Estimator
+                </button>
+                <button class="nav-tab" data-tab="settings-tab">
+                    <i data-lucide="settings" style="width: 16px; height: 16px;"></i> Settings
+                </button>
+            </nav>
+
+            <div class="header-actions">
+                <button class="theme-btn" id="theme-toggle-btn" title="Toggle Light/Dark Theme">
+                    <i data-lucide="sun" id="theme-sun-icon" style="width: 18px; height: 18px; display: none;"></i>
+                    <i data-lucide="moon" id="theme-moon-icon" style="width: 18px; height: 18px;"></i>
+                </button>
+                <button class="btn-primary" id="global-add-transaction-btn">
+                    <i data-lucide="plus" style="width: 18px; height: 18px;"></i> Add Asset
+                </button>
+            </div>
+        </header>
+
+        <!-- Dynamic Content Panes -->
+        
+        <!-- DASHBOARD TAB -->
+        <main class="tab-content active" id="dashboard-tab">
+            <!-- 3 Metric Cards Grid -->
+            <div class="grid-3col">
+                <div class="card">
+                    <div class="card-title">
+                        Net Worth
+                        <i data-lucide="wallet" style="width: 18px; height: 18px; color: var(--color-primary);"></i>
+                    </div>
+                    <div class="metric-value" id="net-worth-val">₹0.00</div>
+                    <div>
+                        <span class="metric-change positive" id="net-worth-change">
+                            <i data-lucide="arrow-up-right" style="width: 14px; height: 14px;"></i> 0.00%
+                        </span>
+                        <span class="metric-subtitle">Lifetime Profit</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-title">
+                        Day's Gain / Loss
+                        <i data-lucide="trending-up" id="day-gain-icon" style="width: 18px; height: 18px; color: var(--color-gain);"></i>
+                    </div>
+                    <div class="metric-value" id="day-gain-val">₹0.00</div>
+                    <div>
+                        <span class="metric-change positive" id="day-gain-percent">
+                            <i data-lucide="arrow-up-right" style="width: 14px; height: 14px;"></i> 0.00%
+                        </span>
+                        <span class="metric-subtitle">Today's fluctuation</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">
+                        Total Invested Capital
+                        <i data-lucide="landmark" style="width: 18px; height: 18px; color: var(--color-secondary);"></i>
+                    </div>
+                    <div class="metric-value" id="total-invested-val">₹0.00</div>
+                    <div>
+                        <span class="metric-change" id="split-percentage-label" style="background: rgba(255,255,255,0.05); color: var(--text-secondary);">
+                            Stocks: 0% | MFs: 0%
+                        </span>
+                        <span class="metric-subtitle">Asset allocation split</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Visuals Grid -->
+            <div class="grid-dashboard">
+                <!-- Left: Chart & Allocations -->
+                <div class="card">
+                    <div class="card-title">Asset & Sector Allocations</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: center;">
+                        <div class="chart-container" style="height: 220px;">
+                            <canvas id="allocation-donut-chart"></canvas>
+                        </div>
+                        <div class="allocation-breakdown">
+                            <h4 style="font-size: 0.9rem; font-weight:600; margin-bottom: 0.5rem; color: var(--text-muted);">SECTOR EXPOSURE</h4>
+                            <div id="sector-bars-container">
+                                <p style="color: var(--text-secondary); font-size: 0.85rem;">No assets purchased yet.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Performance History -->
+                <div class="card">
+                    <div class="card-title">
+                        Portfolio Trend Lines
+                        <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">Simulated Performance</span>
+                    </div>
+                    <div class="chart-container" style="height: 220px;">
+                        <canvas id="portfolio-trend-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Performing Holdings Panel -->
+            <div class="card" style="margin-top: 1.5rem;">
+                <div class="card-title">Top Portfolio Holdings Summary</div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Asset Class</th>
+                                <th>Symbol / Name</th>
+                                <th>Qty / Units</th>
+                                <th>Average Buy Price</th>
+                                <th>Current Market Price</th>
+                                <th>Total Cost</th>
+                                <th>Current Value</th>
+                                <th>Total Returns (INR)</th>
+                                <th>Total Returns (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="top-holdings-tbody">
+                            <tr>
+                                <td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+                                    Your portfolio is empty. Click <strong>Add Asset</strong> to populate holdings.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- STOCKS TAB -->
+        <main class="tab-content" id="stocks-tab">
+            <!-- Mini Metric Strip -->
+            <div class="grid-3col" style="margin-bottom: 1rem;">
+                <div class="card" style="padding: 1rem 1.25rem;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">Stock Investments</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; font-family: var(--font-heading);" id="stock-cost-val">₹0.00</div>
+                </div>
+                <div class="card" style="padding: 1rem 1.25rem;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">Current Value</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; font-family: var(--font-heading);" id="stock-value-val">₹0.00</div>
+                </div>
+                <div class="card" style="padding: 1rem 1.25rem;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">Stock Returns (Total)</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; font-family: var(--font-heading); color: var(--color-gain);" id="stock-returns-val">₹0.00 (0.00%)</div>
+                </div>
+            </div>
+
+            <!-- Holdings and Actions Header -->
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 style="font-family: var(--font-heading); font-size: 1.35rem; font-weight: 700;">Direct Equity Holdings</h2>
+                <button class="btn-primary" id="add-stock-btn">
+                    <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Transact Stock
+                </button>
+            </div>
+
+            <!-- Holdings Table -->
+            <div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Shares</th>
+                                <th>Avg Cost</th>
+                                <th>Current Price</th>
+                                <th>Total Cost</th>
+                                <th>Current Value</th>
+                                <th>Day's Return</th>
+                                <th>Total Return</th>
+                                <th>Suggested Action</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stock-holdings-tbody">
+                            <!-- Injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Stock Transactions Logs -->
+            <div class="card" style="padding: 1rem;">
+                <div class="card-title">Stock Transaction History Logs</div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Symbol</th>
+                                <th>Type</th>
+                                <th>Quantity</th>
+                                <th>Price Per Share</th>
+                                <th>Brokerage Charges</th>
+                                <th>Total Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stock-transactions-tbody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 1.5rem;">No historical stock transactions recorded.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- MUTUAL FUNDS TAB -->
+        <main class="tab-content" id="mfs-tab">
+            <!-- Mini Metric Strip -->
+            <div class="grid-3col" style="margin-bottom: 1rem;">
+                <div class="card" style="padding: 1rem 1.25rem;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">Mutual Fund Investments</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; font-family: var(--font-heading);" id="mf-cost-val">₹0.00</div>
+                </div>
+                <div class="card" style="padding: 1rem 1.25rem;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">Current NAV Value</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; font-family: var(--font-heading);" id="mf-value-val">₹0.00</div>
+                </div>
+                <div class="card" style="padding: 1rem 1.25rem;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">MF Returns (Total)</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; font-family: var(--font-heading); color: var(--color-gain);" id="mf-returns-val">₹0.00 (0.00%)</div>
+                </div>
+            </div>
+
+            <!-- MFs Actions Header -->
+            <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 1rem;">
+                <h2 style="font-family: var(--font-heading); font-size: 1.35rem; font-weight: 700;">Mutual Fund Holdings</h2>
+                <div style="display:flex; gap: 0.5rem;">
+                    <button class="btn-secondary" id="setup-sip-btn">
+                        <i data-lucide="calendar-days" style="width: 16px; height: 16px;"></i> Start SIP
+                    </button>
+                    <button class="btn-primary" id="add-mf-btn">
+                        <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Buy Mutual Fund
+                    </button>
+                </div>
+            </div>
+
+            <!-- Holdings Table -->
+            <div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Scheme Name</th>
+                                <th>Units</th>
+                                <th>Avg NAV Cost</th>
+                                <th>Current NAV</th>
+                                <th>Total Invested</th>
+                                <th>Current Value</th>
+                                <th>Total Return</th>
+                                <th>Advisory Note</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mf-holdings-tbody">
+                            <!-- Injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- SIP Scheduler & Ledger Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <!-- Left: Running SIPs -->
+                <div class="card" style="padding: 1.25rem;">
+                    <div class="card-title">Active SIPs Tracker (Systematic Investment Plans)</div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fund Name</th>
+                                    <th>Monthly SIP Amount</th>
+                                    <th>Day of Month</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sips-tbody">
+                                <tr>
+                                    <td colspan="4" style="text-align: center; color: var(--text-secondary); padding: 1.5rem;">No active systematic investment plans setup.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Right: MF Ledger -->
+                <div class="card" style="padding: 1.25rem;">
+                    <div class="card-title">Mutual Fund Transaction History</div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Scheme Name</th>
+                                    <th>Type</th>
+                                    <th>Units</th>
+                                    <th>NAV Rate</th>
+                                    <th>Total Invested</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mf-transactions-tbody">
+                                <tr>
+                                    <td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 1.5rem;">No mutual fund ledger entries.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- SMART ADVISORY TAB -->
+        <main class="tab-content" id="advisor-tab">
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-title">
+                    Pinnacle Portfolio Advisory Engine
+                    <span class="badge badge-info">AI-Powered Analytics</span>
+                </div>
+                <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                    The advisory engine runs real-time diagnostic checks on your portfolio positions, evaluating concentration risks, asset class divergence, and average-down dip buying opportunities based on your target asset allocations and market prices.
+                </p>
+            </div>
+
+            <div class="advisor-layout">
+                <!-- Left panel: Health Dashboard & Rebalancing -->
+                <div>
+                    <div class="card" style="margin-bottom: 1.5rem;">
+                        <div class="card-title">Portfolio Allocator Rebalancing Status</div>
+                        
+                        <div class="warning-banner" id="rebalance-status-banner">
+                            <!-- Injected dynamically -->
+                            <i data-lucide="check-circle" style="width: 20px; height: 20px; color: var(--color-gain); flex-shrink: 0;"></i>
+                            <div class="warning-banner-text">
+                                <strong>Perfect Balance</strong>
+                                Your portfolio is perfectly balanced matching your target configurations.
+                            </div>
+                        </div>
+
+                        <!-- Target vs Current Progress Indicators -->
+                        <div class="allocation-breakdown" style="gap: 1.25rem;">
+                            <div>
+                                <div style="display:flex; justify-content:space-between; font-size: 0.85rem; margin-bottom: 0.25rem;">
+                                    <span style="font-weight:600; color: var(--color-primary);">Stocks Core Share</span>
+                                    <span>Target: <span id="target-stock-perc-disp">60%</span> | Current: <span id="current-stock-perc-disp">0%</span></span>
+                                </div>
+                                <div class="alloc-bar-bg" style="margin: 0; height: 10px;">
+                                    <div class="alloc-bar-fill" id="stock-rebalance-progress" style="width: 0%; background: var(--color-primary);"></div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div style="display:flex; justify-content:space-between; font-size: 0.85rem; margin-bottom: 0.25rem;">
+                                    <span style="font-weight:600; color: var(--color-secondary);">Mutual Funds Share</span>
+                                    <span>Target: <span id="target-mf-perc-disp">40%</span> | Current: <span id="current-mf-perc-disp">0%</span></span>
+                                </div>
+                                <div class="alloc-bar-bg" style="margin: 0; height: 10px;">
+                                    <div class="alloc-bar-fill" id="mf-rebalance-progress" style="width: 0%; background: var(--color-secondary);"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Risk Exposure Summary</div>
+                        <ul style="font-size: 0.85rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.75rem; list-style: none;" id="risk-alerts-list">
+                            <li><i data-lucide="shield-check" style="width: 14px; height: 14px; color: var(--color-gain); display: inline; vertical-align: middle; margin-right: 0.25rem;"></i> No high concentration risks detected.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Right panel: Actionable recommendations -->
+                <div class="card">
+                    <div class="card-title">Asset-Specific Recommendations</div>
+                    <div class="advice-cards-container" id="advice-cards-wrapper">
+                        <div style="text-align: center; color: var(--text-secondary); padding: 3rem;">
+                            <i data-lucide="line-chart" style="width: 48px; height: 48px; color: var(--text-muted); margin-bottom: 1rem;"></i>
+                            <p>No actionable suggestions available. Create holdings to evaluate strategies.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- TAX ESTIMATOR TAB -->
+        <main class="tab-content" id="tax-tab">
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-title">
+                    Capital Gains Indian Tax Estimator
+                    <i data-lucide="calculator" style="width: 18px; height: 18px; color: var(--color-primary);"></i>
+                </div>
+                <p style="font-size: 0.9rem; color: var(--text-secondary);">
+                    Estimates capital gains liability for transactions executed in the current financial year based on the revised rules introduced in the **Union Budget 2024 / 2025**. Under these rules:
+                </p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; font-size: 0.8rem; color: var(--text-secondary);">
+                    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 8px;">
+                        <strong style="color: var(--color-primary); display:block; margin-bottom: 0.25rem;">Equity Stocks & Mutual Funds</strong>
+                        • Held &lt; 12 months: <strong>STCG taxed at 20%</strong><br>
+                        • Held &ge; 12 months: <strong>LTCG taxed at 12.5%</strong> (with tax-free gains limit up to ₹1.25 Lakhs per financial year).
+                    </div>
+                    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 0.75rem; border-radius: 8px;">
+                        <strong style="color: var(--color-secondary); display:block; margin-bottom: 0.25rem;">Debt Mutual Funds (Post April 1, 2023)</strong>
+                        • All gains are classified as short-term regardless of holding period.<br>
+                        • Taxed strictly at your **applicable income tax slab rate** (configured in settings).
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tax Summary Cards -->
+            <div class="grid-3col" style="margin-bottom: 1.5rem;">
+                <div class="card">
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Total Realized Gains</div>
+                    <div style="font-size: 1.8rem; font-weight:700; font-family:var(--font-heading);" id="tax-realized-gains-val">₹0.00</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">Realized through sell orders</div>
+                </div>
+                
+                <div class="card">
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Taxable Gains</div>
+                    <div style="font-size: 1.8rem; font-weight:700; font-family:var(--font-heading);" id="tax-taxable-gains-val">₹0.00</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);" id="tax-ltcg-exempt-note">Accounting for ₹1.25L LTCG allowance</div>
+                </div>
+
+                <div class="card" style="position: relative;">
+                    <div style="content:''; position:absolute; top:0; left:0; width:4px; height:100%; background: var(--color-loss);"></div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Estimated Tax Liability</div>
+                    <div style="font-size: 1.8rem; font-weight:700; font-family:var(--font-heading); color: var(--color-loss);" id="tax-liability-val">₹0.00</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);" id="tax-slab-effective-note">Based on flat 20% equity / configured slab</div>
+                </div>
+            </div>
+
+            <!-- Realized Capital Gains Table -->
+            <div class="card" style="padding: 1rem;">
+                <div class="card-title">Realized Gains Breakdown Ledger</div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date Sold</th>
+                                <th>Asset Class</th>
+                                <th>Name / Symbol</th>
+                                <th>Holding Period</th>
+                                <th>Tax Category</th>
+                                <th>Cost Value</th>
+                                <th>Sell Value</th>
+                                <th>Realized Gain/Loss</th>
+                                <th>Calculated Tax</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tax-ledger-tbody">
+                            <tr>
+                                <td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 2rem;">No sell transactions recorded to generate tax estimations.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- SETTINGS TAB -->
+        <main class="tab-content" id="settings-tab">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                
+                <!-- Allocation & Risk Settings -->
+                <div class="card">
+                    <div class="card-title">Portfolio Strategy Settings</div>
+                    
+                    <div class="form-group">
+                        <label for="settings-risk-profile">Investor Risk Profile Profile</label>
+                        <select id="settings-risk-profile" class="form-control">
+                            <option value="conservative">Conservative (30% Stocks / 70% Mutual Funds)</option>
+                            <option value="balanced" selected>Balanced (50% Stocks / 50% Mutual Funds)</option>
+                            <option value="aggressive">Aggressive (70% Stocks / 30% Mutual Funds)</option>
+                            <option value="custom">Custom Allocation Target</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="settings-allocation-group">
+                        <label for="settings-stock-target">Target Stocks Allocation: <span id="settings-stock-target-val">50%</span></label>
+                        <input type="range" id="settings-stock-target" min="0" max="100" value="50" class="form-control" style="padding:0; margin: 0.5rem 0;">
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">Mutual Funds allocation will adapt automatically to maintain 100%.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="settings-tax-slab">Applicable Income Tax Slab Rate (For Debt MF Gains)</label>
+                        <select id="settings-tax-slab" class="form-control">
+                            <option value="10">10% Slab Rate</option>
+                            <option value="20">20% Slab Rate</option>
+                            <option value="30" selected>30% Slab Rate (High Income)</option>
+                            <option value="0">Exempt / Zero Slab</option>
+                        </select>
+                    </div>
+
+                    <button class="btn-primary" id="save-settings-btn" style="margin-top: 1rem; width: 100%;">
+                        Save Allocation & Strategy Configurations
+                    </button>
+                </div>
+
+                <!-- Simulation Settings & Actions -->
+                <div class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
+                    <div>
+                        <div class="card-title">Market Simulation Settings</div>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+                            Control the market price tick simulator rate and load or purge portfolio databases.
+                        </p>
+                        
+                        <div class="form-group">
+                            <label for="settings-simulator-speed">Market Update Tick Speed</label>
+                            <select id="settings-simulator-speed" class="form-control">
+                                <option value="3000" selected>Fast (Every 3 seconds)</option>
+                                <option value="5000">Normal (Every 5 seconds)</option>
+                                <option value="10000">Slow (Every 10 seconds)</option>
+                                <option value="paused">Pause Simulator</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="border-top: 1px solid var(--border-color); padding-top: 1.5rem; display:flex; gap: 0.75rem; flex-direction: column;">
+                        <div style="display:flex; gap: 0.75rem;">
+                            <button class="btn-secondary" id="load-sample-btn" style="flex:1;">
+                                <i data-lucide="database-backup" style="width: 16px; height: 16px;"></i> Load Mock Portfolio
+                            </button>
+                            <button class="btn-secondary" style="flex:1; border-color: rgba(244,63,94,0.3); color: var(--color-loss);" id="clear-data-btn">
+                                <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i> Wipe Local Database
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- TRANSACTIONS MODAL OVERLAY -->
+    <div class="modal-overlay" id="transaction-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Record Portfolio Asset</h3>
+                <button class="close-btn" id="modal-close-btn">&times;</button>
+            </div>
+            
+            <form id="transaction-form">
+                <!-- Asset Class Selector -->
+                <div class="form-group">
+                    <label for="modal-asset-class">Asset Class</label>
+                    <select id="modal-asset-class" class="form-control">
+                        <option value="stock" selected>Direct Equity Stock</option>
+                        <option value="mf">Mutual Fund Scheme</option>
+                    </select>
+                </div>
+
+                <!-- STOCK FIELDS -->
+                <div id="stock-fields-container">
+                    <div class="form-group">
+                        <label for="modal-stock-select">Select Indian Stock</label>
+                        <select id="modal-stock-select" class="form-control">
+                            <!-- Preloaded from mockData.js -->
+                        </select>
+                    </div>
+                </div>
+
+                <!-- MUTUAL FUND FIELDS -->
+                <div id="mf-fields-container" style="display: none; position: relative;">
+                    <div class="form-group">
+                        <label for="modal-mf-search">Search AMFI Mutual Fund (e.g. Parag Parikh, HDFC, SBI)</label>
+                        <input type="text" id="modal-mf-search" class="form-control" placeholder="Type to search funds..." autocomplete="off">
+                        <div class="search-results-dropdown" id="mf-search-dropdown" style="display: none;"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="modal-mf-selected-name">Selected Fund</label>
+                        <input type="text" id="modal-mf-selected-name" class="form-control" readonly style="background: rgba(255,255,255,0.03);">
+                        <input type="hidden" id="modal-mf-selected-code">
+                    </div>
+                </div>
+
+                <!-- TRANSACTION DETAILS -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="modal-tx-type">Transaction Type</label>
+                        <select id="modal-tx-type" class="form-control">
+                            <option value="BUY" selected>BUY (Purchase)</option>
+                            <option value="SELL">SELL (Redemption)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="modal-tx-date">Transaction Date</label>
+                        <input type="date" id="modal-tx-date" class="form-control" required>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label id="quantity-label" for="modal-tx-qty">Quantity (Shares)</label>
+                        <input type="number" id="modal-tx-qty" step="any" min="0.001" class="form-control" placeholder="0" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label id="price-label" for="modal-tx-price">Price Per Share (₹)</label>
+                        <input type="number" id="modal-tx-price" step="any" min="0.01" class="form-control" placeholder="0.00" required>
+                    </div>
+                </div>
+
+                <div class="form-group" id="brokerage-field-container">
+                    <label for="modal-tx-brokerage">Brokerage & Taxes (₹)</label>
+                    <input type="number" id="modal-tx-brokerage" step="0.01" min="0" value="0.00" class="form-control">
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" id="modal-cancel-btn">Cancel</button>
+                    <button type="submit" class="btn-primary" id="modal-submit-btn">Save Position</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SIP CREATOR MODAL -->
+    <div class="modal-overlay" id="sip-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Start Systematic Investment Plan (SIP)</h3>
+                <button class="close-btn" id="sip-close-btn">&times;</button>
+            </div>
+            
+            <form id="sip-form">
+                <div class="form-group" style="position: relative;">
+                    <label for="modal-sip-search">Search AMFI Mutual Fund</label>
+                    <input type="text" id="modal-sip-search" class="form-control" placeholder="Type to search funds..." autocomplete="off">
+                    <div class="search-results-dropdown" id="sip-search-dropdown" style="display: none;"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="modal-sip-selected-name">Selected Fund</label>
+                    <input type="text" id="modal-sip-selected-name" class="form-control" readonly style="background: rgba(255,255,255,0.03);">
+                    <input type="hidden" id="modal-sip-selected-code">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="modal-sip-amount">Monthly Installment Amount (₹)</label>
+                        <input type="number" id="modal-sip-amount" min="500" step="100" class="form-control" placeholder="5000" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="modal-sip-day">SIP Day of Month</label>
+                        <input type="number" id="modal-sip-day" min="1" max="28" value="5" class="form-control" required>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" id="sip-cancel-btn">Cancel</button>
+                    <button type="submit" class="btn-primary">Create SIP</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Floating toast containers -->
+    <div class="toast-container" id="toast-wrapper"></div>
+
+    <!-- Main Application script -->
+    <script src="mockData.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
