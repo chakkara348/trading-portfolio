@@ -215,13 +215,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function fetchLiveStockPrices() {
-        if (!window.marketStocks || window.marketStocks.length === 0) return Promise.resolve();
-        const symbols = window.marketStocks.map(s => `${s.symbol}.NS`).join(",");
-        const targetUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
-        
-        // Try Primary Proxy: corsproxy.io
-        const primaryUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
+    function fetchStockPriceFromChart(symbol) {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}.NS?interval=1d&range=1d`;
+        const primaryUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
         
         return fetch(primaryUrl)
             .then(res => {
@@ -229,60 +225,77 @@ document.addEventListener("DOMContentLoaded", () => {
                 return res.json();
             })
             .then(data => {
-                // corsproxy.io returns the raw Yahoo Finance response directly
-                updateStockPricesFromQuote(data);
+                const meta = data?.chart?.result?.[0]?.meta;
+                if (!meta) throw new Error("Invalid chart response format");
+                return {
+                    price: parseFloat(meta.regularMarketPrice),
+                    prevClose: parseFloat(meta.chartPreviousClose || meta.previousClose)
+                };
             })
             .catch(err => {
-                console.warn("Primary CORS proxy failed, trying backup proxy...", err);
-                // Try Backup Proxy: allorigins.win
-                const backupUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+                console.warn(`Primary CORS proxy failed for ${symbol}, trying backup proxy...`, err);
+                const backupUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
                 return fetch(backupUrl)
                     .then(res => {
                         if (!res.ok) throw new Error("Backup proxy failed");
                         return res.json();
                     })
-                    .then(data => {
-                        // allorigins wraps response in { contents: "..." }
-                        const parsed = JSON.parse(data.contents);
-                        updateStockPricesFromQuote(parsed);
-                    })
-                    .catch(backupErr => {
-                        console.error("All CORS proxies failed to fetch live stock prices:", backupErr);
+                    .then(resData => {
+                        const parsed = JSON.parse(resData.contents);
+                        const meta = parsed?.chart?.result?.[0]?.meta;
+                        if (!meta) throw new Error("Invalid chart response format in backup");
+                        return {
+                            price: parseFloat(meta.regularMarketPrice),
+                            prevClose: parseFloat(meta.chartPreviousClose || meta.previousClose)
+                        };
                     });
             });
     }
 
-    function updateStockPricesFromQuote(responseObj) {
-        const results = responseObj?.quoteResponse?.result;
-        if (!results || !Array.isArray(results)) {
-            throw new Error("Invalid quote response format");
-        }
+    function fetchLiveStockPrices() {
+        if (!window.marketStocks || window.marketStocks.length === 0) return Promise.resolve();
         
-        results.forEach(quote => {
-            const cleanSymbol = quote.symbol.replace(".NS", "");
-            const regularPrice = parseFloat(quote.regularMarketPrice);
-            const prevClose = parseFloat(quote.regularMarketPreviousClose);
-            
-            const stock = window.marketStocks.find(s => s.symbol === cleanSymbol);
-            if (stock && !isNaN(regularPrice)) {
-                stock.currentPrice = regularPrice;
-                if (!isNaN(prevClose)) {
-                    stock.basePrice = prevClose;
-                }
-                stock.change = stock.currentPrice - stock.basePrice;
-                stock.changePercent = (stock.change / stock.basePrice) * 100;
-                
-                // Update active holdings in state if present
-                if (state.holdings.stocks[cleanSymbol]) {
-                    state.holdings.stocks[cleanSymbol].currentPrice = regularPrice;
-                    state.holdings.stocks[cleanSymbol].basePrice = stock.basePrice;
-                }
-            }
+        let promiseChain = Promise.resolve();
+        
+        window.marketStocks.forEach(stock => {
+            promiseChain = promiseChain.then(() => {
+                return fetchStockPriceFromChart(stock.symbol)
+                    .then(data => {
+                        const { price, prevClose } = data;
+                        if (price && !isNaN(price)) {
+                            stock.currentPrice = price;
+                            if (prevClose && !isNaN(prevClose)) {
+                                stock.basePrice = prevClose;
+                            }
+                            stock.change = stock.currentPrice - stock.basePrice;
+                            stock.changePercent = (stock.change / stock.basePrice) * 100;
+                            
+                            // Update active holdings in state if present
+                            if (state.holdings.stocks[stock.symbol]) {
+                                state.holdings.stocks[stock.symbol].currentPrice = price;
+                                state.holdings.stocks[stock.symbol].basePrice = stock.basePrice;
+                            }
+                        }
+                    })
+                    .catch(err => {
+                        console.error(`Error updating live price for stock ${stock.symbol}:`, err);
+                    })
+                    .then(() => {
+                        // Stagger requests by 200ms to avoid rate-limiting on proxies
+                        return new Promise(resolve => setTimeout(resolve, 200));
+                    });
+            });
         });
         
-        recalculatePortfolioTotals();
-        updateUI();
-        console.log("Live stock prices updated successfully from Yahoo Finance");
+        return promiseChain
+            .then(() => {
+                recalculatePortfolioTotals();
+                updateUI();
+                console.log("Live stock prices updated successfully from Yahoo Finance Charts API");
+            })
+            .catch(err => {
+                console.error("Error in sequential live stock price updates:", err);
+            });
     }
 
     function fetchLiveMFNavs() {
