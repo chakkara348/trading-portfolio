@@ -610,12 +610,17 @@
                 </div>
 
                 <!-- STOCK FIELDS -->
-                <div id="stock-fields-container">
+                <div id="stock-fields-container" style="position: relative;">
                     <div class="form-group">
-                        <label for="modal-stock-select">Select Indian Stock</label>
-                        <select id="modal-stock-select" class="form-control">
-                            <!-- Preloaded from mockData.js -->
-                        </select>
+                        <label for="modal-stock-search">Search Indian Stock (e.g. Reliance, TCS, INFY)</label>
+                        <input type="text" id="modal-stock-search" class="form-control" placeholder="Type to search stocks..." autocomplete="off">
+                        <div class="search-results-dropdown" id="stock-search-dropdown" style="display: none;"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="modal-stock-selected-name">Selected Stock</label>
+                        <input type="text" id="modal-stock-selected-name" class="form-control" readonly style="background: rgba(255,255,255,0.03);">
+                        <input type="hidden" id="modal-stock-selected-symbol">
                     </div>
                 </div>
 

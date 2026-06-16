@@ -1475,6 +1475,20 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
 
+        // Real-time dynamic search typing logic for Stocks
+        const stockSearchInput = document.getElementById("modal-stock-search");
+        if (stockSearchInput) {
+            stockSearchInput.addEventListener("input", (e) => {
+                const q = e.target.value.trim();
+                clearTimeout(searchDebounceTimer);
+                if (q.length < 3) {
+                    document.getElementById("stock-search-dropdown").style.display = "none";
+                    return;
+                }
+                searchDebounceTimer = setTimeout(() => searchStocks(q, "stock-search-dropdown", selectStockForTransaction), 350);
+            });
+        }
+
         // Real-time dynamic search typing logic for Mutual Funds using MFAPI
         const mfSearchInput = document.getElementById("modal-mf-search");
         if (mfSearchInput) {
@@ -1504,6 +1518,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Close search results dropdowns clicking outside
         document.addEventListener("click", (e) => {
+            if (!e.target.closest("#stock-fields-container")) {
+                document.getElementById("stock-search-dropdown").style.display = "none";
+            }
             if (!e.target.closest("#mf-fields-container")) {
                 document.getElementById("mf-search-dropdown").style.display = "none";
             }
@@ -1646,40 +1663,36 @@ document.addEventListener("DOMContentLoaded", () => {
         classSelect.value = assetClass;
         typeSelect.value = type;
 
-        // Populate Stocks dropdown dynamically
-        const stockSelect = document.getElementById("modal-stock-select");
-        stockSelect.innerHTML = "";
-        window.marketStocks.forEach(s => {
-            const opt = document.createElement("option");
-            opt.value = s.symbol;
-            opt.innerText = `${s.symbol} - ${s.name}`;
-            stockSelect.appendChild(opt);
-        });
-
         toggleModalFields(assetClass);
 
         if (assetClass === "stock") {
-            if (symbol) stockSelect.value = symbol;
-            updateStockModalPrice();
+            document.getElementById("modal-stock-search").value = "";
+            document.getElementById("stock-search-dropdown").style.display = "none";
+            if (symbol) {
+                const stockDetails = window.marketStocks.find(s => s.symbol === symbol) || {};
+                document.getElementById("modal-stock-selected-name").value = mfName || stockDetails.name || symbol;
+                document.getElementById("modal-stock-selected-symbol").value = symbol;
+                updateStockModalPrice();
+            } else {
+                document.getElementById("modal-stock-selected-name").value = "";
+                document.getElementById("modal-stock-selected-symbol").value = "";
+                document.getElementById("modal-tx-price").value = "";
+            }
         } else {
+            document.getElementById("modal-mf-search").value = "";
+            document.getElementById("mf-search-dropdown").style.display = "none";
             if (symbol) {
                 document.getElementById("modal-mf-selected-name").value = mfName || symbol;
                 document.getElementById("modal-mf-selected-code").value = symbol;
-                document.getElementById("modal-mf-search").value = "";
                 updateMfModalPrice(symbol);
             } else {
                 document.getElementById("modal-mf-selected-name").value = "";
                 document.getElementById("modal-mf-selected-code").value = "";
-                document.getElementById("modal-mf-search").value = "";
                 document.getElementById("modal-tx-price").value = "";
             }
         }
 
         modal.classList.add("active");
-        
-        // Add listener to stock selection to change price dynamically
-        stockSelect.removeEventListener("change", updateStockModalPrice);
-        stockSelect.addEventListener("change", updateStockModalPrice);
     }
 
     function closeTransactionModal() {
@@ -1710,11 +1723,29 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateStockModalPrice() {
-        const sym = document.getElementById("modal-stock-select").value;
-        const stock = window.marketStocks.find(s => s.symbol === sym);
+        const symbol = document.getElementById("modal-stock-selected-symbol").value;
+        if (!symbol) return;
+
+        const stock = window.marketStocks.find(s => s.symbol === symbol);
         if (stock) {
             document.getElementById("modal-tx-price").value = stock.currentPrice.toFixed(2);
+            return;
         }
+
+        // Fetch live price for the newly searched stock
+        fetchStockPriceFromChart(symbol)
+            .then(data => {
+                const { price, prevClose } = data;
+                if (price && !isNaN(price)) {
+                    document.getElementById("modal-tx-price").value = price.toFixed(2);
+                    const name = document.getElementById("modal-stock-selected-name").value;
+                    ensureStockInMarket(symbol, name, price, prevClose);
+                }
+            })
+            .catch(err => {
+                console.error("Error fetching live price for newly searched stock", err);
+                document.getElementById("modal-tx-price").value = "";
+            });
     }
 
     function updateMfModalPrice(code) {
@@ -1802,6 +1833,105 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("modal-sip-selected-code").value = code;
     }
 
+    function searchStocks(query, dropdownId, onSelectCallback) {
+        const dropdown = document.getElementById(dropdownId);
+        dropdown.innerHTML = `<div style="padding: 0.75rem 1rem; color: var(--text-muted); font-size: 0.85rem;">Searching stocks...</div>`;
+        dropdown.style.display = "block";
+
+        const localMatches = window.marketStocks.filter(s => 
+            s.symbol.toLowerCase().includes(query.toLowerCase()) || 
+            s.name.toLowerCase().includes(query.toLowerCase())
+        );
+
+        // Fetch from Yahoo Finance Search API via CORS proxy
+        const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=8&newsCount=0`;
+        const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
+
+        fetch(proxyUrl)
+            .then(res => {
+                if (!res.ok) throw new Error("Primary search proxy failed");
+                return res.json();
+            })
+            .then(data => {
+                renderStockSearchResults(data?.quotes || [], localMatches, dropdown, onSelectCallback);
+            })
+            .catch(err => {
+                console.warn("Primary stock search failed, trying backup proxy...", err);
+                const backupUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+                fetch(backupUrl)
+                    .then(res => {
+                        if (!res.ok) throw new Error("Backup search proxy failed");
+                        return res.json();
+                    })
+                    .then(resData => {
+                        const parsed = JSON.parse(resData.contents);
+                        renderStockSearchResults(parsed?.quotes || [], localMatches, dropdown, onSelectCallback);
+                    })
+                    .catch(backupErr => {
+                        console.error("Backup stock search failed too, using local matches", backupErr);
+                        renderStockSearchResults([], localMatches, dropdown, onSelectCallback);
+                    });
+            });
+    }
+
+    function renderStockSearchResults(quotes, localMatches, dropdown, onSelectCallback) {
+        dropdown.innerHTML = "";
+        const merged = [...localMatches.map(m => ({ symbol: m.symbol, name: m.name }))];
+
+        quotes.forEach(q => {
+            if (q.quoteType === "EQUITY" && (q.symbol.endsWith(".NS") || q.symbol.endsWith(".BO") || q.exchange === "NSI" || q.exchange === "BSE")) {
+                const cleanSymbol = q.symbol.replace(".NS", "").replace(".BO", "");
+                if (!merged.some(m => m.symbol === cleanSymbol)) {
+                    merged.push({
+                        symbol: cleanSymbol,
+                        name: q.longname || q.shortname || cleanSymbol
+                    });
+                }
+            }
+        });
+
+        if (merged.length === 0) {
+            dropdown.innerHTML = `<div style="padding: 0.75rem 1rem; color: var(--text-muted); font-size: 0.85rem;">No stocks found matching query.</div>`;
+            return;
+        }
+
+        merged.slice(0, 7).forEach(item => {
+            const option = document.createElement("div");
+            option.className = "search-result-item";
+            option.innerHTML = `<strong>${item.symbol}</strong> - <span style="font-size: 0.8rem; color: var(--text-secondary);">${item.name}</span>`;
+            option.addEventListener("click", () => {
+                onSelectCallback(item.symbol, item.name);
+                dropdown.style.display = "none";
+            });
+            dropdown.appendChild(option);
+        });
+    }
+
+    function selectStockForTransaction(symbol, name) {
+        document.getElementById("modal-stock-selected-name").value = name;
+        document.getElementById("modal-stock-selected-symbol").value = symbol;
+        document.getElementById("modal-stock-search").value = "";
+        updateStockModalPrice();
+    }
+
+    function ensureStockInMarket(symbol, name, price, basePrice = null, sector = "General Equity") {
+        let stock = window.marketStocks.find(s => s.symbol === symbol);
+        if (!stock) {
+            stock = {
+                symbol: symbol,
+                name: name,
+                sector: sector,
+                basePrice: basePrice || price,
+                currentPrice: price,
+                beta: 1.0,
+                change: 0,
+                changePercent: 0
+            };
+            window.marketStocks.push(stock);
+        }
+        return stock;
+    }
+
     // -------------------------------------------------------------
     // 12. TRANSACTION SUBMISSIONS (FIFO TAX CALCULATIONS)
     // -------------------------------------------------------------
@@ -1820,9 +1950,12 @@ document.addEventListener("DOMContentLoaded", () => {
         let category = "Equity"; // Default category assumption
 
         if (assetClass === "stock") {
-            symbol = document.getElementById("modal-stock-select").value;
-            const stockDetails = window.marketStocks.find(s => s.symbol === symbol);
-            name = stockDetails ? stockDetails.name : symbol;
+            symbol = document.getElementById("modal-stock-selected-symbol").value;
+            name = document.getElementById("modal-stock-selected-name").value;
+            if (!symbol || !name) {
+                showToast("Please search and select a valid Stock.", "warning");
+                return;
+            }
         } else {
             symbol = document.getElementById("modal-mf-selected-code").value;
             name = document.getElementById("modal-mf-selected-name").value;
