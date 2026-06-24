@@ -147,6 +147,7 @@ header::before {
     letter-spacing: -0.5px;
     background: linear-gradient(to right, var(--text-primary), var(--text-secondary));
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
@@ -882,5 +883,163 @@ select.form-control {
     border-color: rgba(244, 63, 94, 0.4) !important;
     box-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
     color: var(--color-loss) !important;
+}
+
+/* ==========================================================================
+   AUTH SCREEN STYLING & PREMIUM LAYOUT
+   ========================================================================== */
+
+.auth-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem;
+    position: relative;
+    z-index: 10;
+}
+
+.auth-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 450px;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    box-shadow: var(--shadow-soft);
+    position: relative;
+    animation: slideUp var(--transition-normal);
+}
+
+.auth-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+    border-radius: 20px 20px 0 0;
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.auth-header .logo-icon {
+    margin: 0 auto 1rem auto;
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+}
+
+.auth-header h2 {
+    font-family: var(--font-heading);
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    color: var(--text-primary);
+}
+
+.auth-header p {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.auth-form-panel {
+    display: none;
+}
+
+.auth-form-panel.active {
+    display: block;
+    animation: fadeIn var(--transition-normal);
+}
+
+.auth-links {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    font-size: 0.85rem;
+}
+
+.auth-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: color var(--transition-fast), text-shadow var(--transition-fast);
+}
+
+.auth-link:hover {
+    color: var(--text-primary);
+    text-shadow: 0 0 8px var(--color-primary-glow);
+    text-decoration: none;
+}
+
+.auth-switch-text {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 1.5rem;
+}
+
+/* Password criteria verification display */
+.password-criteria {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+    transition: border-color var(--transition-fast);
+}
+
+.password-criteria p {
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+    font-size: 0.8rem;
+}
+
+.criteria-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.criteria-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    transition: color var(--transition-fast);
+}
+
+.criteria-item.met {
+    color: var(--color-gain);
+}
+
+.criteria-item.unmet {
+    color: var(--color-loss);
+}
+
+.criteria-item svg,
+.criteria-item i {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+}
+
+/* User header profile button interactions */
+#logout-btn:hover {
+    background: var(--color-loss-bg) !important;
+    border-color: rgba(244, 63, 94, 0.25) !important;
+    box-shadow: 0 0 10px rgba(244, 63, 94, 0.2);
 }
 

@@ -13,7 +13,164 @@
 </head>
 <body data-theme="dark">
 
-    <div class="app-container">
+    <!-- Auth Container -->
+    <div id="auth-container" class="auth-container">
+        <!-- Auth Card -->
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="logo-icon">P</div>
+                <h2>Pinnacle Portfolio</h2>
+                <p id="auth-subtitle">Real-time Wealth Advisory Portal</p>
+            </div>
+
+            <!-- Sign In Panel -->
+            <div id="signin-panel" class="auth-form-panel active">
+                <form id="signin-form" novalidate>
+                    <div class="form-group">
+                        <label for="signin-email">Email Address</label>
+                        <input type="email" id="signin-email" class="form-control" placeholder="name@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signin-password">Password</label>
+                        <input type="password" id="signin-password" class="form-control" placeholder="••••••••" required>
+                    </div>
+                    <div class="auth-links">
+                        <label style="display: flex; align-items: center; gap: 0.25rem; font-weight: normal; color: var(--text-secondary); margin: 0; cursor: pointer;">
+                            <input type="checkbox" id="signin-remember" style="accent-color: var(--color-primary);"> Remember me
+                        </label>
+                        <span class="auth-link" id="go-to-forgot-btn">Forgot Password?</span>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">
+                        <i data-lucide="log-in" style="width: 18px; height: 18px;"></i> Sign In
+                    </button>
+                    <p class="auth-switch-text">
+                        Don't have an account? <span class="auth-link" id="go-to-signup-btn">Sign Up</span>
+                    </p>
+                </form>
+            </div>
+
+            <!-- Sign Up Panel -->
+            <div id="signup-panel" class="auth-form-panel">
+                <form id="signup-form" novalidate>
+                    <div class="form-group">
+                        <label for="signup-email">Email Address</label>
+                        <input type="email" id="signup-email" class="form-control" placeholder="name@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-password">Password</label>
+                        <input type="password" id="signup-password" class="form-control" placeholder="••••••••" required>
+                        <div class="password-criteria" id="signup-criteria">
+                            <p>Password Strength Checklist:</p>
+                            <ul class="criteria-list">
+                                <li class="criteria-item unmet" id="signup-crit-length">
+                                    <i data-lucide="check" class="crit-icon-check" style="display: none; width: 12px; height: 12px; color: var(--color-gain); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                    <i data-lucide="x" class="crit-icon-x" style="display: inline-block; width: 12px; height: 12px; color: var(--color-loss); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                    <span>5 to 12 Characters</span>
+                                </li>
+                                <li class="criteria-item unmet" id="signup-crit-upper">
+                                    <i data-lucide="check" class="crit-icon-check" style="display: none; width: 12px; height: 12px; color: var(--color-gain); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                    <i data-lucide="x" class="crit-icon-x" style="display: inline-block; width: 12px; height: 12px; color: var(--color-loss); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                    <span>At least 1 Uppercase letter</span>
+                                </li>
+                                <li class="criteria-item unmet" id="signup-crit-lower">
+                                    <i data-lucide="check" class="crit-icon-check" style="display: none; width: 12px; height: 12px; color: var(--color-gain); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                    <i data-lucide="x" class="crit-icon-x" style="display: inline-block; width: 12px; height: 12px; color: var(--color-loss); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                    <span>At least 1 Lowercase letter</span>
+                                </li>
+                                <li class="criteria-item unmet" id="signup-crit-alphanumeric">
+                                    <i data-lucide="check" class="crit-icon-check" style="display: none; width: 12px; height: 12px; color: var(--color-gain); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                    <i data-lucide="x" class="crit-icon-x" style="display: inline-block; width: 12px; height: 12px; color: var(--color-loss); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                    <span>Alphanumeric only (no spaces/symbols)</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-confirm-password">Confirm Password</label>
+                        <input type="password" id="signup-confirm-password" class="form-control" placeholder="••••••••" required>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; justify-content: center; margin-top: 1rem;">
+                        <i data-lucide="user-plus" style="width: 18px; height: 18px;"></i> Sign Up
+                    </button>
+                    <p class="auth-switch-text">
+                        Already have an account? <span class="auth-link" id="go-to-signin-btn">Sign In</span>
+                    </p>
+                </form>
+            </div>
+
+            <!-- Forgot Password Panel -->
+            <div id="forgot-panel" class="auth-form-panel">
+                <!-- Step 1: Find Account -->
+                <div id="forgot-step1">
+                    <form id="forgot-form" novalidate>
+                        <div class="form-group">
+                            <label for="forgot-email">Email Address</label>
+                            <input type="email" id="forgot-email" class="form-control" placeholder="name@example.com" required>
+                        </div>
+                        <button type="submit" class="btn-primary" style="width: 100%; justify-content: center; margin-top: 1rem;">
+                            <i data-lucide="search" style="width: 18px; height: 18px;"></i> Search Account
+                        </button>
+                        <p class="auth-switch-text">
+                            Remember your password? <span class="auth-link" id="forgot-back-to-signin-btn">Sign In</span>
+                        </p>
+                    </form>
+                </div>
+                <!-- Step 2: Reset Password (shown after verifying email) -->
+                <div id="forgot-step2" style="display: none;">
+                    <form id="reset-password-form" novalidate>
+                        <div class="form-group">
+                            <label>Verification Token (Simulated)</label>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                                A code was simulated for security.
+                            </div>
+                            <input type="text" id="reset-token" class="form-control" value="123456" readonly style="background: rgba(255,255,255,0.03); text-align: center; font-weight: bold; letter-spacing: 2px;">
+                        </div>
+                        <div class="form-group">
+                            <label for="reset-password">New Password</label>
+                            <input type="password" id="reset-password" class="form-control" placeholder="••••••••" required>
+                            <div class="password-criteria" id="reset-criteria">
+                                <p>Password Strength Checklist:</p>
+                                <ul class="criteria-list">
+                                    <li class="criteria-item unmet" id="reset-crit-length">
+                                        <i data-lucide="check" class="crit-icon-check" style="display: none; width: 12px; height: 12px; color: var(--color-gain); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                        <i data-lucide="x" class="crit-icon-x" style="display: inline-block; width: 12px; height: 12px; color: var(--color-loss); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                        <span>5 to 12 Characters</span>
+                                    </li>
+                                    <li class="criteria-item unmet" id="reset-crit-upper">
+                                        <i data-lucide="check" class="crit-icon-check" style="display: none; width: 12px; height: 12px; color: var(--color-gain); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                        <i data-lucide="x" class="crit-icon-x" style="display: inline-block; width: 12px; height: 12px; color: var(--color-loss); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                        <span>At least 1 Uppercase letter</span>
+                                    </li>
+                                    <li class="criteria-item unmet" id="reset-crit-lower">
+                                        <i data-lucide="check" class="crit-icon-check" style="display: none; width: 12px; height: 12px; color: var(--color-gain); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                        <i data-lucide="x" class="crit-icon-x" style="display: inline-block; width: 12px; height: 12px; color: var(--color-loss); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                        <span>At least 1 Lowercase letter</span>
+                                    </li>
+                                    <li class="criteria-item unmet" id="reset-crit-alphanumeric">
+                                        <i data-lucide="check" class="crit-icon-check" style="display: none; width: 12px; height: 12px; color: var(--color-gain); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                        <i data-lucide="x" class="crit-icon-x" style="display: inline-block; width: 12px; height: 12px; color: var(--color-loss); vertical-align: middle; margin-right: 0.25rem;"></i>
+                                        <span>Alphanumeric only (no spaces/symbols)</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="reset-confirm-password">Confirm New Password</label>
+                            <input type="password" id="reset-confirm-password" class="form-control" placeholder="••••••••" required>
+                        </div>
+                        <button type="submit" class="btn-primary" style="width: 100%; justify-content: center; margin-top: 1rem;">
+                            <i data-lucide="key-round" style="width: 18px; height: 18px;"></i> Reset Password
+                        </button>
+                        <p class="auth-switch-text">
+                            Remember your password? <span class="auth-link" id="reset-back-to-signin-btn">Sign In</span>
+                        </p>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container" id="app-container" style="display: none;">
         
         <!-- Live Stock Ticker -->
         <div class="live-ticker-banner">
@@ -66,6 +223,16 @@
                     <i data-lucide="sun" id="theme-sun-icon" style="width: 18px; height: 18px; display: none;"></i>
                     <i data-lucide="moon" id="theme-moon-icon" style="width: 18px; height: 18px;"></i>
                 </button>
+                
+                <!-- Logged in user profile display and logout -->
+                <div class="user-profile-menu" id="user-profile-menu" style="display: flex; align-items: center; gap: 0.5rem; background: rgba(0,0,0,0.15); padding: 0.25rem 0.5rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                    <i data-lucide="user" style="width: 16px; height: 16px; color: var(--text-secondary);"></i>
+                    <span id="user-display-email" style="font-size: 0.85rem; color: var(--text-secondary); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;" title="Logged in user email"></span>
+                    <button class="action-btn" id="logout-btn" title="Sign Out" style="padding: 0.3rem; border-radius: 6px; border-color: transparent; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all var(--transition-fast);">
+                        <i data-lucide="log-out" style="width: 15px; height: 15px; color: var(--color-loss);"></i>
+                    </button>
+                </div>
+
                 <button class="btn-primary" id="global-add-transaction-btn">
                     <i data-lucide="plus" style="width: 18px; height: 18px;"></i> Add Asset
                 </button>

@@ -20,6 +20,9 @@ document.addEventListener("DOMContentLoaded", () => {
         realizedGains: []     // History of sold transactions for tax logs
     };
 
+    // User session variable
+    let currentUserEmail = null;
+
     // Chart.js references
     let allocationChart = null;
     let trendChart = null;
@@ -33,48 +36,127 @@ document.addEventListener("DOMContentLoaded", () => {
     // -------------------------------------------------------------
     // 2. INITIALIZATION & DATA SEEDING
     // -------------------------------------------------------------
-    function init() {
-        // Load data from LocalStorage
-        const savedState = localStorage.getItem("pinnacle_portfolio_state");
+    // -------------------------------------------------------------
+    // USER DATABASE, AUTH UTILITIES & EVENT LISTENERS
+    // -------------------------------------------------------------
+    function initUserDB() {
+        const users = localStorage.getItem("pinnacle_users");
+        if (!users) {
+            // Seed a demo user
+            const defaultUsers = [
+                { email: "demo@pinnacle.com", password: "Password123" }
+            ];
+            localStorage.setItem("pinnacle_users", JSON.stringify(defaultUsers));
+        }
+    }
+
+    function getUsers() {
+        try {
+            return JSON.parse(localStorage.getItem("pinnacle_users")) || [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveUsers(users) {
+        localStorage.setItem("pinnacle_users", JSON.stringify(users));
+    }
+
+    function validateEmail(email) {
+        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return re.test(email);
+    }
+
+    function checkPasswordStrength(password) {
+        return {
+            length: password.length >= 5 && password.length <= 12,
+            upper: /[A-Z]/.test(password),
+            lower: /[a-z]/.test(password),
+            alphanumeric: password.length > 0 && /^[a-zA-Z0-9]+$/.test(password)
+        };
+    }
+
+    function updatePasswordCriteriaUI(password, type) {
+        const checks = checkPasswordStrength(password);
+        const prefix = type === "signup" ? "signup-crit-" : "reset-crit-";
+
+        updateCritItem(prefix + "length", checks.length);
+        updateCritItem(prefix + "upper", checks.upper);
+        updateCritItem(prefix + "lower", checks.lower);
+        updateCritItem(prefix + "alphanumeric", checks.alphanumeric);
+    }
+
+    function updateCritItem(elementId, isMet) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        
+        const checkIcon = el.querySelector(".crit-icon-check");
+        const xIcon = el.querySelector(".crit-icon-x");
+        
+        if (isMet) {
+            el.className = "criteria-item met";
+            if (checkIcon) checkIcon.style.display = "inline-block";
+            if (xIcon) xIcon.style.display = "none";
+        } else {
+            el.className = "criteria-item unmet";
+            if (checkIcon) checkIcon.style.display = "none";
+            if (xIcon) xIcon.style.display = "inline-block";
+        }
+    }
+
+    function switchAuthPanel(panelId) {
+        const panels = document.querySelectorAll(".auth-form-panel");
+        panels.forEach(p => p.classList.remove("active"));
+        
+        const target = document.getElementById(panelId);
+        if (target) {
+            target.classList.add("active");
+        }
+
+        const subtitle = document.getElementById("auth-subtitle");
+        if (subtitle) {
+            if (panelId === "signin-panel") {
+                subtitle.innerText = "Real-time Wealth Advisory Portal";
+            } else if (panelId === "signup-panel") {
+                subtitle.innerText = "Create a secure account to track your wealth";
+            } else if (panelId === "forgot-panel") {
+                subtitle.innerText = "Simulate recovery options for your credentials";
+            }
+        }
+    }
+
+    function loadUserState() {
+        const userSuffix = currentUserEmail ? "_" + btoa(currentUserEmail).replace(/=/g, "") : "";
+        const savedState = localStorage.getItem("pinnacle_portfolio_state" + userSuffix);
+        
         if (savedState) {
             try {
                 state = JSON.parse(savedState);
-                // Apply loaded settings
-                document.body.setAttribute("data-theme", state.settings.theme);
-                updateThemeIcons();
-                
-                // Synchronize setting input values
-                document.getElementById("settings-risk-profile").value = state.settings.riskProfile;
-                document.getElementById("settings-stock-target").value = state.settings.targetStockPercent;
-                document.getElementById("settings-stock-target-val").innerText = state.settings.targetStockPercent + "%";
-                document.getElementById("settings-tax-slab").value = state.settings.taxSlab;
-                document.getElementById("settings-simulator-speed").value = state.settings.simulatorSpeed;
-                
-                // Render everything
-                initCharts();
-                updateUI();
-                
-                // Fetch real live prices on load
-                fetchLiveStockPrices();
-                fetchLiveMFNavs();
-                
-                startSimulator();
             } catch (e) {
-                console.error("Error loading local storage state, fallback to defaults.", e);
-                loadDefaults();
+                console.error("Error parsing user state", e);
+                loadDefaultsForUser();
             }
         } else {
-            // Seed a default portfolio so the user isn't presented with an empty dashboard
-            loadDefaults();
+            if (currentUserEmail === "demo@pinnacle.com") {
+                loadDefaultsForUser();
+            } else {
+                loadEmptyWorkspace();
+            }
         }
-
-        // Initialize UI event handlers
-        setupEventListeners();
-        lucide.createIcons();
+        
+        // Apply loaded settings
+        document.body.setAttribute("data-theme", state.settings.theme || "dark");
+        updateThemeIcons();
+        
+        // Synchronize settings panel inputs
+        document.getElementById("settings-risk-profile").value = state.settings.riskProfile || "balanced";
+        document.getElementById("settings-stock-target").value = state.settings.targetStockPercent || 50;
+        document.getElementById("settings-stock-target-val").innerText = (state.settings.targetStockPercent || 50) + "%";
+        document.getElementById("settings-tax-slab").value = state.settings.taxSlab || 30;
+        document.getElementById("settings-simulator-speed").value = state.settings.simulatorSpeed || 3000;
     }
 
-    function loadDefaults() {
-        // Seeding initial holdings & transactions
+    function loadDefaultsForUser() {
         state.holdings = {
             stocks: {
                 "RELIANCE": { symbol: "RELIANCE", name: "Reliance Industries Ltd.", quantity: 50, avgPrice: 2350.00, totalCost: 117500.00, basePrice: 2450.00, currentPrice: 2450.00, sector: "Energy & Petrochemicals" },
@@ -87,7 +169,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         };
 
-        // Date constants for tax estimations (e.g. showing long-term and short-term holdings)
         const dateLTCG = "2025-02-10";
         const dateSTCG = "2026-03-01";
 
@@ -104,7 +185,6 @@ document.addEventListener("DOMContentLoaded", () => {
             { id: "s2", amfiCode: "118989", name: "Nippon India Small Cap Fund - Direct Growth", amount: 3000, day: 10 }
         ];
 
-        // Seed some realized gains to demonstrate the Tax tab right away
         state.realizedGains = [
             {
                 id: "rg1",
@@ -121,7 +201,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 holdingPeriodDays: 179,
                 taxCategory: "Equity STCG",
                 realizedGain: 8250.00,
-                taxOwed: 1650.00 // 20%
+                taxOwed: 1650.00
             },
             {
                 id: "rg2",
@@ -138,7 +218,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 holdingPeriodDays: 765,
                 taxCategory: "Equity LTCG",
                 realizedGain: 45000.00,
-                taxOwed: 5625.00 // 12.5% (simplified prior to cumulative exemption threshold check)
+                taxOwed: 5625.00
             },
             {
                 id: "rg3",
@@ -155,7 +235,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 holdingPeriodDays: 175,
                 taxCategory: "Debt Slab Rate",
                 realizedGain: 1260.00,
-                taxOwed: 378.00 // 30% slab
+                taxOwed: 378.00
             }
         ];
 
@@ -168,19 +248,353 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         saveToLocalStorage();
+    }
+
+    function loadEmptyWorkspace() {
+        state.holdings = {
+            stocks: {},
+            mutualFunds: {}
+        };
+        state.transactions = [];
+        state.sips = [];
+        state.realizedGains = [];
+        state.settings = {
+            theme: "dark",
+            riskProfile: "balanced",
+            targetStockPercent: 50,
+            taxSlab: 30,
+            simulatorSpeed: 3000
+        };
+        saveToLocalStorage();
+    }
+
+    function logout() {
+        if (simulatorInterval) clearInterval(simulatorInterval);
+        localStorage.removeItem("pinnacle_current_user");
+        currentUserEmail = null;
+        
+        // Hide app, show auth
+        document.getElementById("app-container").style.display = "none";
+        document.getElementById("auth-container").style.display = "flex";
+        document.getElementById("user-profile-menu").style.display = "none";
+        
+        // Clear login input values
+        document.getElementById("signin-email").value = "";
+        document.getElementById("signin-password").value = "";
+        
+        switchAuthPanel("signin-panel");
+        showToast("Logged out successfully!", "info");
+    }
+
+    function init() {
+        // Initialize User database in localStorage
+        initUserDB();
+        
+        // Check active session
+        currentUserEmail = localStorage.getItem("pinnacle_current_user");
+        
+        if (currentUserEmail) {
+            // Load state for this user
+            loadUserState();
+            
+            // Show app container, hide login
+            document.getElementById("auth-container").style.display = "none";
+            document.getElementById("app-container").style.display = "block";
+            
+            // Set user profile details in header
+            document.getElementById("user-display-email").innerText = currentUserEmail;
+            document.getElementById("user-display-email").title = currentUserEmail;
+            document.getElementById("user-profile-menu").style.display = "flex";
+            
+            // Render everything
+            initCharts();
+            updateUI();
+            
+            // Fetch real live prices on load
+            fetchLiveStockPrices();
+            fetchLiveMFNavs();
+            
+            startSimulator();
+        } else {
+            // Show login screen, hide app
+            document.getElementById("auth-container").style.display = "flex";
+            document.getElementById("app-container").style.display = "none";
+            document.getElementById("user-profile-menu").style.display = "none";
+        }
+
+        // Setup both authentication and general app event listeners
+        setupAuthEventListeners();
+        setupEventListeners();
+        lucide.createIcons();
+    }
+
+    function loadDefaults() {
+        // Fallback for user manual data reset trigger
+        loadDefaultsForUser();
         initCharts();
         updateUI();
-        
-        // Fetch real live prices on load
         fetchLiveStockPrices();
         fetchLiveMFNavs();
-        
         startSimulator();
-        showToast("Default sample portfolio loaded!", "gain");
+        showToast("Mock portfolio loaded successfully!", "gain");
     }
 
     function saveToLocalStorage() {
-        localStorage.setItem("pinnacle_portfolio_state", JSON.stringify(state));
+        const userSuffix = currentUserEmail ? "_" + btoa(currentUserEmail).replace(/=/g, "") : "";
+        localStorage.setItem("pinnacle_portfolio_state" + userSuffix, JSON.stringify(state));
+    }
+
+    function setupAuthEventListeners() {
+        // Switching tabs
+        const toSignup = document.getElementById("go-to-signup-btn");
+        const toSignin = document.getElementById("go-to-signin-btn");
+        const toForgot = document.getElementById("go-to-forgot-btn");
+        const forgotBack = document.getElementById("forgot-back-to-signin-btn");
+        const resetBack = document.getElementById("reset-back-to-signin-btn");
+
+        if (toSignup) toSignup.addEventListener("click", () => {
+            document.getElementById("signup-email").value = "";
+            document.getElementById("signup-password").value = "";
+            document.getElementById("signup-confirm-password").value = "";
+            updatePasswordCriteriaUI("", "signup");
+            switchAuthPanel("signup-panel");
+        });
+        
+        if (toSignin) toSignin.addEventListener("click", () => {
+            switchAuthPanel("signin-panel");
+        });
+        
+        if (toForgot) toForgot.addEventListener("click", () => {
+            document.getElementById("forgot-step1").style.display = "block";
+            document.getElementById("forgot-step2").style.display = "none";
+            document.getElementById("forgot-email").value = "";
+            document.getElementById("reset-password").value = "";
+            document.getElementById("reset-confirm-password").value = "";
+            updatePasswordCriteriaUI("", "reset");
+            switchAuthPanel("forgot-panel");
+        });
+        
+        if (forgotBack) forgotBack.addEventListener("click", () => {
+            switchAuthPanel("signin-panel");
+        });
+        
+        if (resetBack) resetBack.addEventListener("click", () => {
+            switchAuthPanel("signin-panel");
+        });
+
+        // Sign Up Password Criteria live check
+        const signupPassInput = document.getElementById("signup-password");
+        if (signupPassInput) {
+            signupPassInput.addEventListener("input", (e) => {
+                updatePasswordCriteriaUI(e.target.value, "signup");
+            });
+        }
+
+        // Reset Password live check
+        const resetPassInput = document.getElementById("reset-password");
+        if (resetPassInput) {
+            resetPassInput.addEventListener("input", (e) => {
+                updatePasswordCriteriaUI(e.target.value, "reset");
+            });
+        }
+
+        // Sign In submission
+        const signinForm = document.getElementById("signin-form");
+        if (signinForm) {
+            signinForm.addEventListener("submit", (e) => {
+                e.preventDefault();
+                const email = document.getElementById("signin-email").value.trim();
+                const password = document.getElementById("signin-password").value;
+
+                if (!email || !password) {
+                    showToast("Email and password are required.", "loss");
+                    return;
+                }
+
+                if (!validateEmail(email)) {
+                    showToast("Invalid email address format.", "loss");
+                    return;
+                }
+
+                const users = getUsers();
+                const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+                if (!user || user.password !== password) {
+                    showToast("Invalid email or password.", "loss");
+                    return;
+                }
+
+                // Session establishment
+                localStorage.setItem("pinnacle_current_user", user.email);
+                currentUserEmail = user.email;
+
+                // Load and transition
+                loadUserState();
+                
+                document.getElementById("auth-container").style.display = "none";
+                document.getElementById("app-container").style.display = "block";
+                
+                document.getElementById("user-display-email").innerText = currentUserEmail;
+                document.getElementById("user-display-email").title = currentUserEmail;
+                document.getElementById("user-profile-menu").style.display = "flex";
+
+                // Initialize workspace
+                if (allocationChart) allocationChart.destroy();
+                if (trendChart) trendChart.destroy();
+                historicalValuations = [];
+                initCharts();
+                updateUI();
+                fetchLiveStockPrices();
+                fetchLiveMFNavs();
+                startSimulator();
+
+                showToast(`Welcome back, ${user.email}!`, "gain");
+            });
+        }
+
+        // Sign Up submission
+        const signupForm = document.getElementById("signup-form");
+        if (signupForm) {
+            signupForm.addEventListener("submit", (e) => {
+                e.preventDefault();
+                const email = document.getElementById("signup-email").value.trim();
+                const password = document.getElementById("signup-password").value;
+                const confirmPassword = document.getElementById("signup-confirm-password").value;
+
+                if (!email || !password || !confirmPassword) {
+                    showToast("All fields are required.", "loss");
+                    return;
+                }
+
+                if (!validateEmail(email)) {
+                    showToast("Invalid email address format.", "loss");
+                    return;
+                }
+
+                // Password strength validation
+                const checks = checkPasswordStrength(password);
+                if (!checks.length || !checks.upper || !checks.lower || !checks.alphanumeric) {
+                    showToast("Password does not meet validation criteria.", "loss");
+                    return;
+                }
+
+                if (password !== confirmPassword) {
+                    showToast("Confirm Password must match Password.", "loss");
+                    return;
+                }
+
+                const users = getUsers();
+                if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+                    showToast("An account with this email already exists.", "loss");
+                    return;
+                }
+
+                // Save user
+                users.push({ email, password });
+                saveUsers(users);
+
+                // Auto login
+                localStorage.setItem("pinnacle_current_user", email);
+                currentUserEmail = email;
+
+                loadUserState();
+
+                document.getElementById("auth-container").style.display = "none";
+                document.getElementById("app-container").style.display = "block";
+                
+                document.getElementById("user-display-email").innerText = currentUserEmail;
+                document.getElementById("user-display-email").title = currentUserEmail;
+                document.getElementById("user-profile-menu").style.display = "flex";
+
+                // Initialize workspace
+                if (allocationChart) allocationChart.destroy();
+                if (trendChart) trendChart.destroy();
+                historicalValuations = [];
+                initCharts();
+                updateUI();
+                fetchLiveStockPrices();
+                fetchLiveMFNavs();
+                startSimulator();
+
+                showToast("Account created successfully!", "gain");
+            });
+        }
+
+        // Forgot Password Step 1
+        const forgotForm = document.getElementById("forgot-form");
+        if (forgotForm) {
+            forgotForm.addEventListener("submit", (e) => {
+                e.preventDefault();
+                const email = document.getElementById("forgot-email").value.trim();
+
+                if (!email) {
+                    showToast("Please enter your registered email.", "loss");
+                    return;
+                }
+
+                if (!validateEmail(email)) {
+                    showToast("Invalid email address format.", "loss");
+                    return;
+                }
+
+                const users = getUsers();
+                const userExists = users.some(u => u.email.toLowerCase() === email.toLowerCase());
+
+                if (!userExists) {
+                    showToast("Email address not registered in system.", "loss");
+                    return;
+                }
+
+                // Show step 2
+                document.getElementById("forgot-step1").style.display = "none";
+                document.getElementById("forgot-step2").style.display = "block";
+                showToast("Email verified. Set your new password.", "gain");
+            });
+        }
+
+        // Forgot Password Step 2 (Reset Password)
+        const resetForm = document.getElementById("reset-password-form");
+        if (resetForm) {
+            resetForm.addEventListener("submit", (e) => {
+                e.preventDefault();
+                const email = document.getElementById("forgot-email").value.trim();
+                const password = document.getElementById("reset-password").value;
+                const confirmPassword = document.getElementById("reset-confirm-password").value;
+
+                if (!password || !confirmPassword) {
+                    showToast("Password fields cannot be empty.", "loss");
+                    return;
+                }
+
+                const checks = checkPasswordStrength(password);
+                if (!checks.length || !checks.upper || !checks.lower || !checks.alphanumeric) {
+                    showToast("New password does not meet complexity criteria.", "loss");
+                    return;
+                }
+
+                if (password !== confirmPassword) {
+                    showToast("Passwords do not match.", "loss");
+                    return;
+                }
+
+                let users = getUsers();
+                const userIndex = users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+
+                if (userIndex === -1) {
+                    showToast("Error updating password. Account missing.", "loss");
+                    return;
+                }
+
+                // Update password
+                users[userIndex].password = password;
+                saveUsers(users);
+
+                showToast("Password updated! Please sign in with your new password.", "gain");
+                
+                // Return to Sign In screen
+                switchAuthPanel("signin-panel");
+            });
+        }
     }
 
     // -------------------------------------------------------------
@@ -2306,7 +2720,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function wipeDatabase() {
         if (confirm("Are you sure you want to purge all transactions, active SIP allocations, and wipe this portfolio database?")) {
-            localStorage.removeItem("pinnacle_portfolio_state");
+            const userSuffix = currentUserEmail ? "_" + btoa(currentUserEmail).replace(/=/g, "") : "";
+            localStorage.removeItem("pinnacle_portfolio_state" + userSuffix);
             state = {
                 holdings: { stocks: {}, mutualFunds: {} },
                 transactions: [],
