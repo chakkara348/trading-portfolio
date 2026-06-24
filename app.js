@@ -595,6 +595,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 switchAuthPanel("signin-panel");
             });
         }
+
+        // Header logout button event handler
+        const logoutBtn = document.getElementById("logout-btn");
+        if (logoutBtn) {
+            logoutBtn.addEventListener("click", () => {
+                logout();
+            });
+        }
     }
 
     // -------------------------------------------------------------
